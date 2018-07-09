@@ -1,0 +1,355 @@
+<?php
+
+namespace ProcessWire;
+
+use Tester\Dumper;
+use Tester\Environment;
+
+/**
+ * Run Nette Tester tests within ProcessWire admin.
+ * by Roland Toth (tpr)
+ *
+ * ProcessWire 3.x
+ * Copyright (C) 2011 by Ryan Cramer
+ * Licensed under GNU/GPL v2, see LICENSE.TXT
+ *
+ * http://www.processwire.com
+ * http://www.ryancramer.com
+ *
+ * FileCompiler=0
+ */
+
+/**
+ * Class ProcessNetteTester
+ *
+ * @package ProcessWire
+ */
+class ProcessNetteTester extends Process
+{
+    const STATUS_UNKNOWN = '<i class="fa fa-question-circle"></i>';
+    const STATUS_OK = '<i class="fa fa-check-circle"></i>';
+    const STATUS_FAIL = '<i class="fa fa-warning"></i>';
+    const testDir = 'tester_tests_directory';
+
+    protected $testDir;
+    protected $testFiles = [];
+
+    /**
+     * Basic information about module
+     *
+     * @return array
+     */
+    public static function getModuleInfo()
+    {
+        return array(
+            'title'    => 'ProcessNetteTester',
+            'summary'  => __('Run Nette Tester tests within ProcessWire admin', __FILE__),
+            'href'     => '',
+            'author'   => 'Roland Toth',
+            'version'  => '0.0.3',
+            'icon'     => 'bomb',
+            'requires' => 'PHP>=5.6.0, ProcessWire>=3.0.0',
+            'autoload' => false,
+            'singular' => true
+        );
+    }
+
+    public function __construct()
+    {
+        $this->testDir = str_replace(
+                '//',
+                '/',
+                $this->wire('config')->paths->root . $this->wire('page')->{self::testDir}) . '/';
+
+//        $this->wire('processBrowserTitle', sprintf($this->_('%s tests'), $this->wire('page')->title));
+
+        parent::__construct();
+    }
+
+    /**
+     * Run test from urlsegment
+     *
+     * @return string|array
+     */
+    public function execute()
+    {
+        ob_start(); // prevent ob_end_clean notice
+
+        ini_set('max_execution_time', '120');
+
+        $isAjax = $this->wire('config')->ajax;
+        $failures = 0;
+
+        if ($isAjax) {
+            $this->testFiles = array($this->wire('sanitizer')->text($this->wire('input')->get('testfile')));
+        } else {
+            $this->testFiles = $this->getFilteredFiles();
+        }
+
+        $testFiles = $this->testFiles;
+        $testDir = $this->wire('page')->{self::testDir};
+        $total = \count($testFiles);
+
+        if ($total === 0) {
+            return sprintf($this->_('No test files found in "%s".'), $this->testDir);
+        }
+
+        if ($isAjax) {
+            require __DIR__ . '/tester/src/bootstrap.php';
+            Environment::setup();
+        }
+
+        if (!$isAjax) {
+            /** @var MarkupAdminDataTable $table */
+            $table = $this->wire('modules')->get('MarkupAdminDataTable');
+            $table->setEncodeEntities(false);
+            $table->addClass('ProcessNetteTester uk-table-striped uk-table-small');
+
+            $table->headerRow(array(
+                $this->_('File'),
+                $this->_('Run'),
+                $this->_('Message'),
+                $this->_('Runtime')
+            ));
+        }
+
+        foreach ($testFiles as $file) {
+
+            $status = self::STATUS_UNKNOWN;
+            $msg = '<em>' . $this->_('--') . '</em>';
+            $rowAttrs = array('data-testfile' => $file);
+            $time_pre = microtime(true);
+
+            $buttonUrl = $this->wire('page')->httpUrl . '?testfile=' . $file;
+            $ajaxButton = '<a href="#" class="ajax-run-test ui-button ui-priority-primary" data-url="' . $buttonUrl . '"><i class="fa fa-play"></i></a>';
+
+            try {
+                ob_start(); // prevent ob_end_clean notice
+
+                if (!$isAjax) {
+                    continue;
+                }
+
+                require $file;
+
+                $status = self::STATUS_OK;
+                $msg = '<em>' . $this->_('Passed') . '</em>';
+
+            } catch (\Exception $exception) {
+
+                $failures++;
+
+                $trace = $exception->getTrace();
+                $info = $trace[1];
+
+                $status = self::STATUS_FAIL;
+
+                if (isset($info['line'])) {
+                    $lineInfo = sprintf($this->_(' on line %s'), $info['line']);
+                } else {
+                    $lineInfo = '';
+                }
+
+                $msg = $this->getFormattedMessage($exception, $lineInfo);
+                $file = isset($info['file']) ? $info['file'] : basename($file);
+
+            } finally {
+
+                if ($isAjax) {
+                    echo json_encode(array(
+                        'status'  => $failures === 0 ? 'pass' : 'fail',
+                        'columns' => array(
+                            '',
+                            '',
+                            $msg,
+                            $this->formatTime($exec_time = microtime(true) - $time_pre)
+                        )
+                    ));
+                    exit;
+                }
+
+                $filename = '<span title="' . $testDir . basename($file) . '">' . basename($file, 'Test.php') . '</span>';
+
+                $columns = array(
+                    $status . $filename,
+                    $ajaxButton,
+                    $msg,
+                    $msg
+                );
+
+                $table->row($columns, $rowAttrs);
+            }
+        }
+
+        $runText = $this->_('Start');
+        $stopText = $this->_('Stop');
+        $abortText = $this->_('Aborted');
+        $restartText = $this->_('Restart');
+        $reryFailedText = $this->_('Retry failed');
+
+        $display = <<< HTML
+<div
+    id="display" 
+    data-stop-text="$stopText" 
+    data-run-text="$runText"
+    data-abort-text="$abortText" 
+    data-restart-text="$restartText"
+    data-retry-failed-text="$reryFailedText"
+>
+<h3><span class="counter">0</span><em class="separator">/</em><span class="total">$total</span><span id="main-launcher"><em>$runText</em><em>$stopText</em></span></h3>
+</div>
+HTML;
+
+        $wrapper = new InputfieldWrapper();
+        $f = wire('modules')->get('InputfieldCheckboxes');
+        $f->name = 'controls';
+        $f->label = '';
+        $f->optionColumns = 1;
+        $f->skipLabel = true;
+        $f->themeBorder = 'none';
+        $f->wrapAttr('data-no-checkall-checkboxes', '1'); // aos
+        $f->collapsed = Inputfield::collapsedNever;
+
+        $f->addOption('testerStopOnFail', $this->_('Stop on fail'));
+        $f->addOption('testerHidePassed', $this->_('Hide passed'));
+        $f->addOption('testerDisplayFailedPerTotal', $this->_('Display failed/total'));
+        $f->addOption('testerRetryFailed', $this->_('Retry failed only'));
+        $f->addOption('testerAutoScroll', $this->_('Autoscroll (bulk)'));
+
+        $wrapper->add($f);
+
+        $controls = $wrapper->render();
+        $dataTable = $table->render();
+
+        $introTest = $this->_('Loaded tests from');
+        $help = $this->_('Click the display to bulk run tests (spacebar). Ctrl+click to reset. Use the checkboxes to control behavior.');
+
+        return <<< HTML
+<div id="ProcessNetteTester-wrap">
+    $display
+    <div class="tester-data-container">
+        <div class="settings">
+            <p>
+            {$introTest} <i>{$testDir}</i>
+            <br> 
+            <small>{$help}</small>
+            </p>
+            <div id="controls">$controls</div>            
+        </div>
+        $dataTable
+    </div>            
+</div>            
+HTML;
+    }
+
+    public function formatTime($duration, $decimals = 3)
+    {
+        if (!$this->wire('config')->ajax || round($duration, 3) === 0.0) {
+            $out = '--';
+        } else {
+            $out = number_format($duration, $decimals, '.', '');
+        }
+
+        return '<em>' . $out . '</em>';
+    }
+
+    public function getFormattedMessage($exception, $lineInfo)
+    {
+        Dumper::$maxLength = 400; // default is 70
+        $origMessage = $exception->origMessage;
+
+        $msg = strtr($origMessage, [
+            '%1 ' => '<span class="actual">%1</span><span>',
+            '%2 ' => '</span><span class="expected">%2</span><span>'
+        ]);
+
+        $msg .= $lineInfo . '</span>';
+
+        $actual = Dumper::toLine($exception->actual);
+        $expected = Dumper::toLine($exception->expected);
+
+        $msg = strtr($msg, array(
+            '%1' => $actual,
+            '%2' => $expected
+        ));
+
+        return '<pre>' . $msg . '</pre>';
+    }
+
+    protected function getFilteredFiles()
+    {
+        $includes = !empty($_GET['include']) ? explode(',', $_GET['include']) : false;
+        $excludes = !empty($_GET['exclude']) ? explode(',', $_GET['exclude']) : false;
+
+        $allFiles = $this->rglob($this->testDir . '*Test.php');
+
+        return array_filter($allFiles, function ($v) use ($includes, $excludes) {
+
+            $name = strtolower(basename($v, '.php'));
+            $nameWithoutSuffix = substr($name, 0, -4);
+
+            if ($includes) {
+                return \in_array($name, $includes, true)
+                    || \in_array($nameWithoutSuffix, $includes, true);
+            }
+
+            if ($excludes) {
+                return !\in_array($name, $excludes, true)
+                    && !\in_array($nameWithoutSuffix, $excludes, true);
+            }
+
+            return true;
+        });
+    }
+
+    public function ___install()
+    {
+        if ($this->fields->get(self::testDir) === null) {
+            $field = new Field();
+            $field->type = $this->modules->get('FieldtypeText');
+            $field->name = self::testDir;
+            $field->label = $this->_('Tests directory');
+            $field->description = $this->_('Directory path where test files are located (relative to site root)');
+            $field->notes = $this->_('Eg. `/site/tests/`');
+            $field->showIf = 'process=ProcessNetteTester';
+            $field->required = 1;
+            $field->requiredIf = 'process=ProcessNetteTester';
+            $field->save();
+
+            // Add field to admin template
+            $adminTemplate = $this->templates->get('admin');
+            $adminTemplate->fields->add($field);
+            $adminTemplate->fields->save();
+
+            $this->message($this->_("Added field '" . self::testDir . "' to admin template."));
+        }
+    }
+
+    public function ___uninstall()
+    {
+        // Remove tester_tests_directory field from admin template
+        $adminTemplate = $this->templates->get('admin');
+
+        if ($adminTemplate->fields->get(self::testDir)) {
+            $adminTemplate->fields->remove($adminTemplate->fields->get(self::testDir));
+            $adminTemplate->fields->save();
+        }
+
+        // Delete tester_tests_directory field
+        $field = $this->fields->get(self::testDir);
+
+        if ($field) {
+            $this->fields->delete($field);
+        }
+    }
+
+    public function rglob($pattern, $flags = 0)
+    {
+        $files = glob($pattern, $flags);
+        foreach (glob(dirname($pattern) . '/*', GLOB_ONLYDIR | GLOB_NOSORT) as $dir) {
+            $files = array_merge($files, $this->rglob($dir . '/' . basename($pattern), $flags));
+        }
+
+        return $files;
+    }
+}
