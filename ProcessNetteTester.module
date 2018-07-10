@@ -46,7 +46,7 @@ class ProcessNetteTester extends Process
             'summary'  => __('Run Nette Tester tests within ProcessWire admin', __FILE__),
             'href'     => '',
             'author'   => 'Roland Toth',
-            'version'  => '0.0.3',
+            'version'  => '0.0.4',
             'icon'     => 'bomb',
             'requires' => 'PHP>=5.6.0, ProcessWire>=3.0.0',
             'autoload' => false,
@@ -186,6 +186,7 @@ class ProcessNetteTester extends Process
         $abortText = $this->_('Aborted');
         $restartText = $this->_('Restart');
         $reryFailedText = $this->_('Retry failed');
+        $totalText = $this->_('Time: %f');
 
         $display = <<< HTML
 <div
@@ -195,6 +196,7 @@ class ProcessNetteTester extends Process
     data-abort-text="$abortText" 
     data-restart-text="$restartText"
     data-retry-failed-text="$reryFailedText"
+    data-total-text="$totalText"
 >
 <h3><span class="counter">0</span><em class="separator">/</em><span class="total">$total</span><span id="main-launcher"><em>$runText</em><em>$stopText</em></span></h3>
 </div>
@@ -242,7 +244,7 @@ HTML;
 HTML;
     }
 
-    public function formatTime($duration, $decimals = 3)
+    public function formatTime($duration, $decimals = 4)
     {
         if (!$this->wire('config')->ajax || round($duration, 3) === 0.0) {
             $out = '--';

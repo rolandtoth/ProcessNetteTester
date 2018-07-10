@@ -8,6 +8,7 @@ $(document).ready(function () {
         total = parseInt($totalCounter.html()),
         $table = $('table.ProcessNetteTester'),
         abortText = $display.attr('data-abort-text'),
+        totalText = $display.attr('data-total-text'),
         runText = $display.attr('data-run-text'),
         stopText = $display.attr('data-stop-text'),
         restartText = $display.attr('data-restart-text'),
@@ -31,9 +32,8 @@ $(document).ready(function () {
         resetDisplay();
     }
 
-    function resetMainLanuncher() {
-        $mainLauncher.find('em:nth-child(1)').html(runText);
-        $mainLauncher.find('em:nth-child(2)').html(stopText);
+    function resetMainLauncherText() {
+        setMainLauncherText(runText, stopText);
     }
 
     function resetDisplay() {
@@ -116,6 +116,24 @@ $(document).ready(function () {
     function setBulkRunCompleted() {
         isBulkCompleted = true;
         setMainLauncherText(getRestartText(), '');
+        showTotalTime();
+    }
+
+    function showTotalTime() {
+        var totalTime = 0;
+
+        $table.find('tbody tr td:last-child').each(function () {
+            var time = parseFloat($(this).text());
+            if (!isNaN(time)) {
+                totalTime += time;
+            }
+        });
+
+        $display.attr('data-total-value', totalText.replace('%f', totalTime.toFixed(4)));
+    }
+
+    function hideTotalTime() {
+        $display.removeAttr('data-total-value');
     }
 
     function runNext() {
@@ -138,7 +156,7 @@ $(document).ready(function () {
         if ($rows.length) {
             $row = $rows.first().find(runSingleSelector);
 
-            if(isScrollIntoViewSupported) {
+            if (isScrollIntoViewSupported) {
                 if (isBulk && userSettings.AutoScroll) {
                     $row[0].scrollIntoView({
                         behavior: 'auto',
@@ -171,11 +189,13 @@ $(document).ready(function () {
 
         if (passCount === total) {
             $display.addClass('pass');
+            setMainLauncherText(getRestartText(), '');
+            showTotalTime();
         }
     }
 
     function initDom() {
-        $mainLauncher.css('min-width', $mainLauncher.outerWidth() + 12 + 'px');
+        // $mainLauncher.css('min-width', $mainLauncher.outerWidth() + 12 + 'px');
 
         $table.find('tbody tr').each(function (i) {
             $(this).attr('data-test-name', $(this).find('td:first-child span').text().replace('.php', '').toLowerCase() + '__' + i);
@@ -204,16 +224,18 @@ $(document).ready(function () {
         // main display
         $mainLauncher.on('click runbulk', function (e) {
 
+            hideTotalTime();
+
             if (isBulkCompleted) {
                 isBulkCompleted = false;
                 if (userSettings.RetryFailed) {
                     $table.find('tbody tr[data-state="fail"]').removeAttr('data-has-run');
-                    resetMainLanuncher();
+                    resetMainLauncherText();
                 } else {
                     $table.find('tbody tr').removeAttr('data-has-run');
                     resetTable();
                     resetDisplay();
-                    resetMainLanuncher();
+                    resetMainLauncherText();
                 }
             }
 
@@ -246,11 +268,14 @@ $(document).ready(function () {
 
             e.preventDefault();
 
-            updateDisplay();
-
             var $button = $(this),
                 $row = $button.parents('tr').first(),
                 ajaxUrl = $button.attr('data-url');
+
+            resetRow($row);
+            hideTotalTime();
+            updateDisplay();
+            resetMainLauncherText();
 
             if ($row.attr('data-state') === 'pending') {
                 abortTest($row);
@@ -259,12 +284,13 @@ $(document).ready(function () {
                 return false;
             }
 
-            resetRow($row);
-
             if (e.metaKey || e.ctrlKey) {
+                if (isBulkCompleted) {
+                    isBulkCompleted = false;
+                }
                 return false;
             }
-            
+
             $row.attr('data-state', 'pending');
             $display.addClass('anim');
             $row.find('td:nth-child(1) i.fa').attr('class', 'fa fa-refresh fa-spin');
