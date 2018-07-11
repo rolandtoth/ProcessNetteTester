@@ -1,34 +1,48 @@
-$(document).ready(function () {
+document.addEventListener('DOMContentLoaded', function () {
 
-    var $mainLauncher = $('#main-launcher'),
-        runSingleSelector = '.ajax-run-test',
-        $display = $('#display'),
-        $totalCounter = $display.find('span.total'),
-        $counter = $display.find('span.counter'),
-        total = parseInt($totalCounter.html()),
-        $table = $('table.ProcessNetteTester'),
-        abortText = $display.attr('data-abort-text'),
-        totalText = $display.attr('data-total-text'),
-        runText = $display.attr('data-run-text'),
-        stopText = $display.attr('data-stop-text'),
-        restartText = $display.attr('data-restart-text'),
-        retryFailedText = $display.attr('data-retry-failed-text'),
+    var $mainLauncher = document.getElementById('main-launcher'),
+        testButtonSelector = '.test-button',
+        $display = document.getElementById('display'),
+        $counter = $display.querySelector('span.counter'),
+        total = parseInt($display.querySelector('span.total').innerHTML),
+        $table = document.getElementById('pnt-table'),
+        abortText = $display.getAttribute('data-abort-text'),
+        totalText = $display.getAttribute('data-total-text'),
+        runText = $display.getAttribute('data-run-text'),
+        stopText = $display.getAttribute('data-stop-text'),
+        restartText = $display.getAttribute('data-restart-text'),
+        retryFailedText = $display.getAttribute('data-retry-failed-text'),
+        isScrollIntoViewSupported = document.body.scrollIntoView,
+        $passedItems = document.getElementsByClassName('pass'),
+        $failedItems = document.getElementsByClassName('fail'),
+        $pendingItems = document.getElementsByClassName('pending'),
+        missingAssertMessage = 'Error: This test forgets to execute an assertion.',
         userSettings = {},
+        requests = {},
         stopFlag = false,
         isBulk = false,
-        isBulkCompleted = false,
-        isScrollIntoViewSupported = document.body.scrollIntoView,
-        requests = {};
+        isBulkCompleted = false;
 
     initDom();
     setupControls();
     addEvents();
     applySettings();
 
+    function setRowState($row, state) {
+        $row.className = state;
+    }
+
+    function getRowState($row) {
+        return $row.className;
+    }
+
     function resetTable() {
-        $table.find('tbody tr').each(function () {
-            resetRow($(this));
-        });
+        var $rows = $table.querySelectorAll('tbody tr');
+
+        for (var i = 0; i < $rows.length; i++) {
+            resetRow($rows[i]);
+        }
+
         resetDisplay();
     }
 
@@ -37,23 +51,24 @@ $(document).ready(function () {
     }
 
     function resetDisplay() {
-        $display.removeAttr('class');
-        $counter.html('0');
+        $display.className = '';
+        $counter.innerHTML = 0;
     }
 
     function clearDisplayAnimStyles() {
-        $display.removeAttr('data-state');
-        $display.removeClass('anim');
+        $display.removeAttribute('data-state');
+        $display.classList.remove('anim');
     }
 
     function setPass($row) {
-        $row.find('td:nth-child(1) i').attr('class', 'fa fa-check-circle');
-        $row.attr('data-state', 'pass');
+        $row.querySelector('td:nth-child(1) i').className = 'fa fa-check-circle';
+        setRowState($row, 'pass');
     }
 
     function setFail($row) {
-        $row.find('td:nth-child(1) i').attr('class', 'fa fa-warning');
-        $row.attr('data-state', 'fail');
+        $row.querySelector('td:nth-child(1) i').className = 'fa fa-warning';
+        setRowState($row, 'fail');
+
 
         if (userSettings.StopOnFail) {
             stopFlag = true;
@@ -63,33 +78,34 @@ $(document).ready(function () {
     }
 
     function resetRow($row, message) {
-        $row.removeAttr('data-state');
-        $row.removeAttr('data-has-run');
-        $row.find('td:first-child i').attr('class', 'fa fa-question-circle');
-        setMessage($row.find('td:nth-child(3)'), message);
-        $row.find('td:nth-child(4)').html('--');
-        $display.removeAttr('class');
+        setRowState($row, '');
+        $row.removeAttribute('data-has-run');
+        $row.querySelector('td:first-child i').setAttribute('class', 'fa fa-question-circle');
+        setMessage($row.querySelector('td:nth-child(3)'), message);
+        $row.querySelector('td:nth-child(4)').innerHTML = '--';
+        $display.removeAttribute('class');
         updateDisplay();
     }
 
     function setMessage($elem, message) {
         message = message || '--';
-        $elem.html('<em>' + message + '</em>');
+        $elem.innerHTML = '<em>' + message + '</em>';
     }
 
     function stop($row) {
         var $pendingRows;
 
-        if ($row && $row.attr('data-state') === 'pending') {
+        if ($row && getRowState($row) === 'pending') {
             abortTest($row);
         }
 
         if (isBulk) {
-            $pendingRows = $table.find('[data-state="pending"]');
+            $pendingRows = $($pendingItems);
+
             if ($pendingRows.length) {
-                $pendingRows.each(function () {
-                    abortTest($(this));
-                });
+                for (var i = 0; i < $pendingRows.length; i++) {
+                    abortTest($pendingRows[i]);
+                }
                 stopFlag = true;
             }
         }
@@ -99,18 +115,21 @@ $(document).ready(function () {
     }
 
     function abortTest($row) {
-        var request = requests[$row.attr('data-test-name')];
-        if (request) {
-            request.abort();
-            delete requests[$row.attr('data-test-name')];
+        var testName = $row.getAttribute('data-test-name'),
+            req = requests[testName];
+
+        if (req) {
+            req.abort();
+            delete requests[testName];
         }
         resetRow($row, abortText);
-        $row.attr('data-state', 'aborted');
+        setRowState($row, 'aborted');
+
     }
 
     function setMainLauncherText(text1, text2) {
-        $mainLauncher.find('em:nth-child(1)').html(text1);
-        $mainLauncher.find('em:nth-child(2)').html(text2);
+        $mainLauncher.querySelector('em:nth-child(1)').innerHTML = text1;
+        $mainLauncher.querySelector('em:nth-child(2)').innerHTML = text2;
     }
 
     function setBulkRunCompleted() {
@@ -120,27 +139,28 @@ $(document).ready(function () {
     }
 
     function showTotalTime() {
-        var totalTime = 0;
+        var totalTime = 0,
+            $timeCells = $table.querySelectorAll('tbody tr td:last-child');
 
-        $table.find('tbody tr td:last-child').each(function () {
-            var time = parseFloat($(this).text());
+        for (var i = 0; i < $timeCells.length; i++) {
+            var time = parseFloat($timeCells[i].innerText);
             if (!isNaN(time)) {
                 totalTime += time;
             }
-        });
+        }
 
-        $display.attr('data-total-value', totalText.replace('%f', totalTime.toFixed(4)));
+        $display.setAttribute('data-total-value', totalText.replace('%f', totalTime.toFixed(4)));
     }
 
     function hideTotalTime() {
-        $display.removeAttr('data-total-value');
+        $display.removeAttribute('data-total-value');
     }
 
     function runNext() {
-        var $rows,
-            $row,
-            pendingSelector = 'tbody tr[data-state="pending"]',
-            hasNotRunSelector = 'tbody tr:not([data-has-run]):not([data-state="pass"]):not([data-state="pending"])';
+        var $row,
+            pendingSelector = 'tbody tr.pending',
+            hasNotRunSelector = 'tbody tr:not([data-has-run]):not(.pass):not(.pending)',
+            $btn;
 
         // disallow run multiple (manually run multiple when bulk is running)
         if ($(pendingSelector).length) return false;
@@ -151,21 +171,21 @@ $(document).ready(function () {
             return false;
         }
 
-        $rows = $table.find(hasNotRunSelector);
+        $row = $table.querySelector(hasNotRunSelector);
 
-        if ($rows.length) {
-            $row = $rows.first().find(runSingleSelector);
+        if ($row) {
+            $btn = $row.querySelector(testButtonSelector);
 
             if (isScrollIntoViewSupported) {
                 if (isBulk && userSettings.AutoScroll) {
-                    $row[0].scrollIntoView({
+                    $btn.scrollIntoView({
                         behavior: 'auto',
                         block: 'center'
                     });
                 }
             }
 
-            $row.trigger('runsingle');
+            $btn.click();
 
         } else {
             // no more rows
@@ -176,30 +196,29 @@ $(document).ready(function () {
     }
 
     function updateDisplay() {
-        var passCount = getPassCount(),
-            failCount = getFailCount();
 
-        $counter.html(userSettings.DisplayFailedPerTotal ? failCount : passCount);
+        $counter.innerHTML = userSettings.DisplayFailedPerTotal ? $failedItems.length : $passedItems.length;
 
-        if (failCount > 0) {
-            $display.addClass('fail');
+        if ($failedItems.length > 0) {
+            $display.classList.add('has-failed');
         } else {
-            $display.removeClass('fail');
+            $display.classList.remove('has-failed');
         }
 
-        if (passCount === total) {
-            $display.addClass('pass');
+        if ($passedItems.length === total) {
+            $display.classList.add('all-pass');
             setMainLauncherText(getRestartText(), '');
             showTotalTime();
         }
     }
 
     function initDom() {
-        // $mainLauncher.css('min-width', $mainLauncher.outerWidth() + 12 + 'px');
+        var $rows = $table.querySelectorAll('tbody tr');
 
-        $table.find('tbody tr').each(function (i) {
-            $(this).attr('data-test-name', $(this).find('td:first-child span').text().replace('.php', '').toLowerCase() + '__' + i);
-        });
+        for (var i = 0; i < $rows.length; i++) {
+            var $row = $rows[i];
+            $row.setAttribute('data-test-name', $row.querySelector('td:first-child span').innerText.replace('.php', '').toLowerCase() + '__' + i);
+        }
     }
 
     function addEvents() {
@@ -216,32 +235,40 @@ $(document).ready(function () {
             }
 
             if (keyCode === 32) {
-                $mainLauncher.get(0).click();
+                $mainLauncher.click();
                 return false;
             }
         });
 
         // main display
-        $mainLauncher.on('click runbulk', function (e) {
+        $mainLauncher.addEventListener('click', function (e) {
+
+            var itemSelector,
+                $rows;
 
             hideTotalTime();
 
             if (isBulkCompleted) {
+
                 isBulkCompleted = false;
-                if (userSettings.RetryFailed) {
-                    $table.find('tbody tr[data-state="fail"]').removeAttr('data-has-run');
-                    resetMainLauncherText();
-                } else {
-                    $table.find('tbody tr').removeAttr('data-has-run');
+                itemSelector = userSettings.RetryFailed ? 'tbody tr.fail' : 'tbody tr';
+                $rows = $table.querySelectorAll(itemSelector);
+
+                for (var i = 0; i < $rows.length; i++) {
+                    $rows[i].removeAttribute('data-has-run');
+                }
+
+                resetMainLauncherText();
+
+                if (!userSettings.RetryFailed) {
                     resetTable();
                     resetDisplay();
-                    resetMainLauncherText();
                 }
             }
 
             e = e || window.event;
 
-            if ($display.attr('data-state')) {
+            if ($display.getAttribute('data-state')) {
                 stopFlag = true;
                 stop();
                 isBulk = false;
@@ -254,30 +281,34 @@ $(document).ready(function () {
                 return false;
             }
 
-            $display.attr('data-state', 'running');
+            $display.setAttribute('data-state', 'running');
             stopFlag = false;
             isBulk = true;
 
             runNext();
         });
 
-        // single test run
-        $table.on('click runsingle', runSingleSelector, function (e) {
+        // run single test
+        // todo rewrite to pure js
 
+        $table.addEventListener("click", filterEventHandler(testButtonSelector, function (e) {
             e = e || window.event;
-
             e.preventDefault();
 
-            var $button = $(this),
-                $row = $button.parents('tr').first(),
-                ajaxUrl = $button.attr('data-url');
+            var $button = e.filterdTarget,
+                $row = $button.parentElement.parentElement,
+                ajaxUrl = $button.getAttribute('data-url'),
+                state = getRowState($row),
+                testName = $row.getAttribute('data-test-name'),
+                request,
+                data;
 
             resetRow($row);
             hideTotalTime();
             updateDisplay();
             resetMainLauncherText();
 
-            if ($row.attr('data-state') === 'pending') {
+            if (state === 'pending') {
                 abortTest($row);
                 stopFlag = false;
                 // stop($row);
@@ -291,59 +322,93 @@ $(document).ready(function () {
                 return false;
             }
 
-            $row.attr('data-state', 'pending');
-            $display.addClass('anim');
-            $row.find('td:nth-child(1) i.fa').attr('class', 'fa fa-refresh fa-spin');
+            setRowState($row, 'pending');
+            $display.classList.add('anim');
+            $row.querySelector('td:nth-child(1) i.fa').className = 'fa fa-refresh fa-spin';
 
-            requests[$row.attr('data-test-name')] = $.getJSON(ajaxUrl)
+            request = new XMLHttpRequest();
+            request.open('GET', ajaxUrl, true);
 
-                .success(function (data) {
+            request.setRequestHeader('Content-Type', 'application/json');
+            request.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
 
-                    $row.find('td:nth-child(3)').html(data.columns[2]);
-                    $row.find('td:nth-child(4)').html(data.columns[3]);
+            request.onreadystatechange = function () {
+                
+                var DONE = 4,
+                    OK = 200;
 
-                    if (data.status === 'fail') {
-                        setFail($row);
-                    } else {
-                        setPass($row);
+                if (request.readyState === DONE)
+
+                    if (request.status === OK) {
+
+                        try {
+                            
+                            // check if response is json
+                            data = JSON.parse(request.responseText);
+
+                            $row.querySelector('td:nth-child(3)').innerHTML = data.columns[2];
+                            $row.querySelector('td:nth-child(4)').innerHTML = data.columns[3];
+
+                            data.status === 'pass' ? setPass($row) : setFail($row);
+                        }
+
+                        catch (ex) {
+
+                            var msg = 'Error',
+                                cleanMessage;
+
+                            setFail($row);
+                            
+                            if (request.responseText && typeof request.responseText === 'string') {
+                                
+                                cleanMessage = request.responseText.replace(missingAssertMessage, '').trim();
+
+                                if(cleanMessage === '') {
+                                    msg = missingAssertMessage;
+                                    
+                                } else {
+                                    try {
+                                        data = JSON.parse(cleanMessage);
+                                        // status is "pass" because Tester probably overrides the exception
+                                        msg = data.status === 'pass' ? missingAssertMessage : data.columns[2];
+                                    } catch(unused) {
+                                        msg = request.responseText;
+                                    }
+                                }
+                            }
+
+                            $row.querySelector('td:nth-child(3)').innerHTML = '<pre>' + msg + '</pre>';
+                        }
+
+                        finally {
+                            
+                            $row.setAttribute('data-has-run', '1');
+
+                            if (isBulk) {
+                                runNext();
+                            } else {
+                                $display.classList.remove('anim');
+                            }
+
+                            updateDisplay();
+                            applySettings();
+                        }
+                        // } else {
+                        // server error or aborted
                     }
-                })
+            };
 
-                .fail(function (data) {
+            request.send();
 
-                    setFail($row);
-
-                    var errorMessage = (data.responseText && typeof data.responseText === 'string') ? data.responseText : 'fail',
-                        missingAssertMessage = 'Error: This test forgets to execute an assertion.';
-
-                    if (data.responseText && data.responseText.indexOf(missingAssertMessage) !== -1) {
-                        errorMessage = missingAssertMessage;
-                    }
-
-                    $row.find('td:nth-child(3)').html('<pre>' + errorMessage + '</pre>');
-                })
-
-                .always(function () {
-
-                    $row.attr('data-has-run', '1');
-
-                    if (isBulk) {
-                        runNext();
-                    } else {
-                        $display.removeClass('anim');
-                    }
-
-                    updateDisplay();
-                    applySettings();
-                })
-        });
+            requests[testName] = request;
+        }));
     }
 
     function applySettings() {
 
-        $('#ProcessNetteTester-wrap').attr('data-hide-passed', userSettings.HidePassed ? '1' : '0');
+        document.getElementById('ProcessNetteTester-wrap').setAttribute('data-hide-passed', userSettings.HidePassed ? '1' : '0');
 
-        $counter.html(userSettings.DisplayFailedPerTotal ? getFailCount() : getPassCount());
+        $counter.innerHTML = userSettings.DisplayFailedPerTotal ? $failedItems.length : $passedItems.length;
 
         if (isBulkCompleted) {
             setMainLauncherText(getRestartText(), '');
@@ -354,43 +419,38 @@ $(document).ready(function () {
         return userSettings.RetryFailed ? retryFailedText : restartText;
     }
 
-    function getPassCount() {
-        return $table.find('tr[data-state="pass"]').length;
-    }
-
-    function getFailCount() {
-        return $table.find('tr[data-state="fail"]').length;
-    }
-
     function setupControls() {
 
-        var $controls = $('#controls');
+        var $controls = document.getElementById('controls');
 
         init();
         setEvents();
 
         function init() {
-            $controls.find('input').each(function () {
-                var $control = $(this),
-                    name = $control.attr('value'),
-                    storedData = localStorage.getItem($control.attr('value'));
 
-                $control.prop('checked', storedData);
+            var $inputs = $controls.querySelectorAll('input');
+
+            for (var i = 0; i < $inputs.length; i++) {
+                var $input = $inputs[i],
+                    name = $input.getAttribute('value'),
+                    storedData = localStorage.getItem($input.getAttribute('value'));
+
+                $input.checked = !!storedData;
 
                 setSetting(name, storedData);
-            });
+            }
         }
 
         function setEvents() {
-            $controls.on('change', 'input', function () {
-                storeData($(this));
+            $controls.addEventListener('change', filterEventHandler('input', function (e) {
+                storeData(e.filterdTarget);
                 applySettings();
-            });
+            }));
         }
 
-        function storeData($control) {
-            var name = $control.attr('value'),
-                isChecked = $control.is(':checked');
+        function storeData($input) {
+            var name = $input.getAttribute('value'),
+                isChecked = $input.checked;
 
             if (isChecked) {
                 localStorage.setItem(name, 1);
@@ -412,3 +472,21 @@ $(document).ready(function () {
         }
     }
 });
+
+// jQuery .on() equivalent
+var filterEventHandler = function (selector, callback) {
+    return (!callback || !callback.call) ? null : function (e) {
+        var target = e.target || e.srcElement || null;
+        while (target && target.parentElement && target.parentElement.querySelectorAll) {
+            var elms = target.parentElement.querySelectorAll(selector);
+            for (var i = 0; i < elms.length; i++) {
+                if (elms[i] === target) {
+                    e.filterdTarget = elms[i];
+                    callback.call(elms[i], e);
+                    return;
+                }
+            }
+            target = target.parentElement;
+        }
+    };
+};

@@ -1,7 +1,6 @@
-<?php
+<?php namespace ProcessWire;
 
-namespace ProcessWire;
-
+use Tester\AssertException;
 use Tester\Dumper;
 use Tester\Environment;
 
@@ -19,6 +18,7 @@ use Tester\Environment;
  * FileCompiler=0
  */
 
+
 /**
  * Class ProcessNetteTester
  *
@@ -26,9 +26,6 @@ use Tester\Environment;
  */
 class ProcessNetteTester extends Process
 {
-    const STATUS_UNKNOWN = '<i class="fa fa-question-circle"></i>';
-    const STATUS_OK = '<i class="fa fa-check-circle"></i>';
-    const STATUS_FAIL = '<i class="fa fa-warning"></i>';
     const testDir = 'tester_tests_directory';
 
     protected $testDir;
@@ -46,7 +43,7 @@ class ProcessNetteTester extends Process
             'summary'  => __('Run Nette Tester tests within ProcessWire admin', __FILE__),
             'href'     => '',
             'author'   => 'Roland Toth',
-            'version'  => '0.0.4',
+            'version'  => '0.0.5',
             'icon'     => 'bomb',
             'requires' => 'PHP>=5.6.0, ProcessWire>=3.0.0',
             'autoload' => false,
@@ -61,10 +58,9 @@ class ProcessNetteTester extends Process
                 '/',
                 $this->wire('config')->paths->root . $this->wire('page')->{self::testDir}) . '/';
 
-//        $this->wire('processBrowserTitle', sprintf($this->_('%s tests'), $this->wire('page')->title));
-
         parent::__construct();
     }
+
 
     /**
      * Run test from urlsegment
@@ -78,7 +74,8 @@ class ProcessNetteTester extends Process
         ini_set('max_execution_time', '120');
 
         $isAjax = $this->wire('config')->ajax;
-        $failures = 0;
+        $isSuccess = false;
+        $passedText = '<em>' . $this->_('Passed') . '</em>';
 
         if ($isAjax) {
             $this->testFiles = array($this->wire('sanitizer')->text($this->wire('input')->get('testfile')));
@@ -102,6 +99,7 @@ class ProcessNetteTester extends Process
         if (!$isAjax) {
             /** @var MarkupAdminDataTable $table */
             $table = $this->wire('modules')->get('MarkupAdminDataTable');
+            $table->id = 'pnt-table';
             $table->setEncodeEntities(false);
             $table->addClass('ProcessNetteTester uk-table-striped uk-table-small');
 
@@ -115,13 +113,12 @@ class ProcessNetteTester extends Process
 
         foreach ($testFiles as $file) {
 
-            $status = self::STATUS_UNKNOWN;
             $msg = '<em>' . $this->_('--') . '</em>';
             $rowAttrs = array('data-testfile' => $file);
             $time_pre = microtime(true);
 
             $buttonUrl = $this->wire('page')->httpUrl . '?testfile=' . $file;
-            $ajaxButton = '<a href="#" class="ajax-run-test ui-button ui-priority-primary" data-url="' . $buttonUrl . '"><i class="fa fa-play"></i></a>';
+            $ajaxButton = '<a href="#" class="test-button ui-button ui-priority-primary" data-url="' . $buttonUrl . '"><i class="fa fa-play"></i></a>';
 
             try {
                 ob_start(); // prevent ob_end_clean notice
@@ -130,34 +127,33 @@ class ProcessNetteTester extends Process
                     continue;
                 }
 
-                require $file;
+                include $file;
 
-                $status = self::STATUS_OK;
-                $msg = '<em>' . $this->_('Passed') . '</em>';
+                $isSuccess = true;
+                $msg = $passedText;
 
-            } catch (\Exception $exception) {
+            } catch (\Error $error) {
+                
+                $isSuccess = false;
+                $msg = $this->getFormattedMessage($error->getMessage() . $this->getLineInfo($error->getLine()));
 
-                $failures++;
+            } catch (AssertException $exception) {
 
+                $isSuccess = false;
                 $trace = $exception->getTrace();
                 $info = $trace[1];
+                $msg = $this->getModifiedDumperMessage($exception, $info['line']);
 
-                $status = self::STATUS_FAIL;
-
-                if (isset($info['line'])) {
-                    $lineInfo = sprintf($this->_(' on line %s'), $info['line']);
-                } else {
-                    $lineInfo = '';
-                }
-
-                $msg = $this->getFormattedMessage($exception, $lineInfo);
-                $file = isset($info['file']) ? $info['file'] : basename($file);
+            } catch (\Exception $exception) {
+                
+                $isSuccess = false;
+                $msg = $this->getFormattedMessage($exception->getMessage() . $this->getLineInfo($exception->getLine()));
 
             } finally {
 
                 if ($isAjax) {
                     echo json_encode(array(
-                        'status'  => $failures === 0 ? 'pass' : 'fail',
+                        'status'  => $isSuccess ? 'pass' : 'fail',
                         'columns' => array(
                             '',
                             '',
@@ -171,7 +167,7 @@ class ProcessNetteTester extends Process
                 $filename = '<span title="' . $testDir . basename($file) . '">' . basename($file, 'Test.php') . '</span>';
 
                 $columns = array(
-                    $status . $filename,
+                    '<i class="fa fa-question-circle"></i>' . $filename,
                     $ajaxButton,
                     $msg,
                     $msg
@@ -255,7 +251,18 @@ HTML;
         return '<em>' . $out . '</em>';
     }
 
-    public function getFormattedMessage($exception, $lineInfo)
+    public function getLineInfo($line = null)
+    {
+        $lineInfo = '';
+
+        if (is_int($line)) {
+            $lineInfo = sprintf($this->_(' on line %s'), $line);
+        }
+
+        return '<em class="line-info">' . $lineInfo . '</em>';
+    }
+
+    public function getModifiedDumperMessage($exception, $line)
     {
         Dumper::$maxLength = 400; // default is 70
         $origMessage = $exception->origMessage;
@@ -265,7 +272,7 @@ HTML;
             '%2 ' => '</span><span class="expected">%2</span><span>'
         ]);
 
-        $msg .= $lineInfo . '</span>';
+        $msg .= $this->getLineInfo($line) . '</span>';
 
         $actual = Dumper::toLine($exception->actual);
         $expected = Dumper::toLine($exception->expected);
@@ -275,6 +282,11 @@ HTML;
             '%2' => $expected
         ));
 
+        return $this->getFormattedMessage($msg);
+    }
+
+    protected function getFormattedMessage($msg)
+    {
         return '<pre>' . $msg . '</pre>';
     }
 

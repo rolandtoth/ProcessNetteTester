@@ -1,6 +1,14 @@
 # Changelog
 
 
+### 0.0.5 (2018-07-11)
+
+- remove jQuery dependency
+- better catch mechanism
+- various fixes
+
+
+
 ### 0.0.4 (2018-07-10)
 
 - show total time on bulk completion

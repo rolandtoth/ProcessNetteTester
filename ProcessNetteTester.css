@@ -4,40 +4,40 @@ pass: #3EB998
 fail: #BC283D
  */
 
-table.ProcessNetteTester i.fa {
+#pnt-table i.fa {
     margin-right: 0.5rem;
 }
 
-table.ProcessNetteTester thead {
+#pnt-table thead {
     white-space: nowrap;
 }
 
-table.ProcessNetteTester tr td:first-child {
+#pnt-table tr td:first-child {
     padding-right: 2rem;
     position: relative;
     white-space: nowrap;
     width: 30% !important;
 }
 
-table.ProcessNetteTester tr th:first-child,
-table.ProcessNetteTester tr td:first-child {
+#pnt-table tr th:first-child,
+#pnt-table tr td:first-child {
     padding-left: 0.75rem !important;
 }
 
-table.ProcessNetteTester tr td:nth-child(3) {
+#pnt-table tr td:nth-child(3) {
     width: 50% !important;
 }
 
-table.ProcessNetteTester tr td:nth-child(2),
-table.ProcessNetteTester tr td:nth-child(4) {
+#pnt-table tr td:nth-child(2),
+#pnt-table tr td:nth-child(4) {
     width: 5% !important;
 }
 
-table.ProcessNetteTester thead th {
+#pnt-table thead th {
     width: auto !important;
 }
 
-table.ProcessNetteTester pre {
+#pnt-table pre {
     font-family: inherit;
     border: none;
     white-space: pre-wrap;
@@ -49,38 +49,38 @@ table.ProcessNetteTester pre {
     overflow: auto;
 }
 
-table.ProcessNetteTester pre span {
+#pnt-table pre span {
     margin-bottom: 0.4rem;
 }
 
-table.ProcessNetteTester pre:first-line {
+#pnt-table pre:first-line {
     color: #BC283D;
 }
 
-table.ProcessNetteTester td:nth-child(3) span {
+#pnt-table td:nth-child(3) span {
     font-size: 0.92rem;
     display: block;
     color: inherit;
     font-weight: normal;
 }
 
-table.ProcessNetteTester td:nth-child(3) > em,
-table.ProcessNetteTester td:nth-child(4) > em {
+#pnt-table td:nth-child(3) > em,
+#pnt-table td:nth-child(4) > em {
     font-style: italic;
     opacity: 0.7;
 }
 
-table.ProcessNetteTester tr th:last-child,
-table.ProcessNetteTester tr td:last-child {
+#pnt-table tr th:last-child,
+#pnt-table tr td:last-child {
     text-align: right;
     padding-right: 1rem;
 }
 
-table.ProcessNetteTester tr td:last-child {
+#pnt-table tr td:last-child {
     padding-right: 1.5rem;
 }
 
-table.ProcessNetteTester td:nth-child(3) span:last-child {
+#pnt-table .line-info {
     opacity: 0.7;
 }
 
@@ -93,7 +93,7 @@ span.expected {
     font-weight: 600 !important;
 }
 
-tr[data-state="fail"] td:not(:nth-child(3)) {
+tr.fail td:not(:nth-child(3)) {
     color: #BC283D;
 }
 
@@ -202,15 +202,15 @@ tr[data-state="fail"] td:not(:nth-child(3)) {
     box-shadow: inset -4px -4px 0 2px rgba(0, 0, 0, 0.21);
 }
 
-#display.fail {
+#display.has-failed {
     background: transparent; /* Reno theme */
 }
 
-#display.fail h3::before {
+#display.has-failed h3::before {
     background: #BC283D;
 }
 
-#display.pass h3::before {
+#display.all-pass h3::before {
     background: #3EB998;
 }
 
@@ -291,7 +291,7 @@ td .fa-question-circle {
     opacity: 1;
 }
 
-.ajax-run-test {
+.test-button {
     cursor: pointer;
     border: none !important;
     padding: 0 0.42rem !important;
@@ -303,17 +303,17 @@ td .fa-question-circle {
     position: relative;
 }
 
-.ajax-run-test:hover {
+.test-button:hover {
     filter: brightness(116%);
 }
 
-.ajax-run-test i {
+.test-button i {
     color: white;
     margin-right: 0 !important;
     transform: scale(0.64);
 }
 
-.AdminThemeUikit .ajax-run-test {
+.AdminThemeUikit .test-button {
     top: -3px;
 }
 
@@ -321,53 +321,53 @@ td .fa-question-circle {
     margin-bottom: 1.5rem !important;
 }
 
-.ProcessNetteTester tbody tr {
+#pnt-table tbody tr {
     border-color: transparent !important;
 }
 
-.ProcessNetteTester tbody tr:first-child {
+#pnt-table tbody tr:first-child {
     border-bottom-color: transparent !important;
 }
 
-.ProcessNetteTester tbody tr[data-state="pending"] {
+#pnt-table tbody tr.pending {
     user-select: none;
     border-bottom: 1px solid #acbcc2 !important;
 }
 
-.ProcessNetteTester thead tr {
+#pnt-table thead tr {
     border-bottom: 1px solid rgba(0, 0, 0, 0.2) !important;
 }
 
-.ProcessNetteTester th {
+#pnt-table th {
     border-left: none !important;
 }
 
-.ProcessNetteTester td {
+#pnt-table td {
     border: none !important;
 }
 
-.ProcessNetteTester tbody tr:nth-of-type(odd) {
+#pnt-table tbody tr:nth-of-type(odd) {
     background: #f0f6f9;
 }
 
-tr[data-state="pass"] .ajax-run-test {
+tr.pass .test-button {
     background: #3EB998 !important;
 }
 
-tr[data-state="fail"] .ajax-run-test {
+tr.fail .test-button {
     background: #BC283D !important;
 }
 
-tr[data-state="fail"] .ajax-run-test {
+tr.fail .test-button {
     background: #BC283D !important;
 }
 
-tr[data-state="pending"] .ajax-run-test:not(:hover) {
+tr.pending .test-button:not(:hover) {
     opacity: 0.513;
     filter: saturate(0);
 }
 
-tr[data-state="pending"] td:nth-child(2) .ajax-run-test i::before {
+tr.pending td:nth-child(2) .test-button i::before {
     content: '\f04d';
 }
 
@@ -375,11 +375,11 @@ tr[data-has-run="1"]:last-child {
     border-bottom: 1px solid #aaa;
 }
 
-tr[data-state="fail"] .ajax-run-test {
+tr.fail .test-button {
     background: #BC283D;
 }
 
-table.ProcessNetteTester tbody tr:hover {
+#pnt-table tbody tr:hover {
     background: #FFFFDD;
 }
 
@@ -393,6 +393,6 @@ table.ProcessNetteTester tbody tr:hover {
     padding-bottom: 0;
 }
 
-#ProcessNetteTester-wrap[data-hide-passed="1"] tr[data-state="pass"] {
+#ProcessNetteTester-wrap[data-hide-passed="1"] tr.pass {
     display: none;
 }
