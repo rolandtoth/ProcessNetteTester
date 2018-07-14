@@ -1,27 +1,37 @@
 document.addEventListener('DOMContentLoaded', function () {
+    document.getElementById('main-launcher') && startProcessNetteTester();
+});
+
+function startProcessNetteTester() {
 
     var $mainLauncher = document.getElementById('main-launcher'),
-        testButtonSelector = '.test-button',
+        runSingleSelector = '.run-single',
         $display = document.getElementById('display'),
         $counter = $display.querySelector('span.counter'),
         total = parseInt($display.querySelector('span.total').innerHTML),
         $table = document.getElementById('pnt-table'),
-        abortText = $display.getAttribute('data-abort-text'),
-        totalText = $display.getAttribute('data-total-text'),
-        runText = $display.getAttribute('data-run-text'),
-        stopText = $display.getAttribute('data-stop-text'),
-        restartText = $display.getAttribute('data-restart-text'),
-        retryFailedText = $display.getAttribute('data-retry-failed-text'),
+        texts = JSON.parse($display.getAttribute('data-texts')),
         isScrollIntoViewSupported = document.body.scrollIntoView,
-        $passedItems = document.getElementsByClassName('pass'),
-        $failedItems = document.getElementsByClassName('fail'),
+        $passedItems = document.getElementsByClassName('passed'),
+        $failedItems = document.getElementsByClassName('failed'),
         $pendingItems = document.getElementsByClassName('pending'),
         missingAssertMessage = 'Error: This test forgets to execute an assertion.',
-        userSettings = {},
+        maxTimeout = parseInt($display.getAttribute('data-max-timeout')),
+        userSettings = {
+            testerStopOnFail: false,
+            testerHidePassed: false,
+            testerCountFailed: false,
+            testerRetryFailed: false,
+            testerAutoScroll: false
+        },
         requests = {},
-        stopFlag = false,
-        isBulk = false,
-        isBulkCompleted = false;
+        pntFlags = {
+            stop: false,
+            bulk: false,
+            bulkComplete: false
+        },
+        COLUMN_RESULT = 3,
+        COLUMN_TIME = 4;
 
     initDom();
     setupControls();
@@ -47,7 +57,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function resetMainLauncherText() {
-        setMainLauncherText(runText, stopText);
+        setMainLauncherText(texts.run, texts.stop);
     }
 
     function resetDisplay() {
@@ -57,39 +67,38 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function clearDisplayAnimStyles() {
         $display.removeAttribute('data-state');
-        $display.classList.remove('anim');
     }
 
     function setPass($row) {
-        $row.querySelector('td:nth-child(1) i').className = 'fa fa-check-circle';
-        setRowState($row, 'pass');
+        setRowState($row, 'passed');
     }
 
     function setFail($row) {
-        $row.querySelector('td:nth-child(1) i').className = 'fa fa-warning';
-        setRowState($row, 'fail');
+        setRowState($row, 'failed');
 
-
-        if (userSettings.StopOnFail) {
-            stopFlag = true;
+        if ($failedItems.length && userSettings.testerStopOnFail) {
+            pntFlags.stop = true;
             stop();
             return false;
         }
     }
 
-    function resetRow($row, message) {
+    function setTimedout($row) {
+        setRowState($row, 'timedout');
+    }
+
+    function resetRow($row, text) {
         setRowState($row, '');
         $row.removeAttribute('data-has-run');
-        $row.querySelector('td:first-child i').setAttribute('class', 'fa fa-question-circle');
-        setMessage($row.querySelector('td:nth-child(3)'), message);
-        $row.querySelector('td:nth-child(4)').innerHTML = '--';
+        setStatusText($row, COLUMN_RESULT, text);
+        setStatusText($row, COLUMN_TIME, texts.emptyValue);
         $display.removeAttribute('class');
         updateDisplay();
     }
 
-    function setMessage($elem, message) {
-        message = message || '--';
-        $elem.innerHTML = '<em>' + message + '</em>';
+    function setStatusText($row, column, text) {
+        text = text || texts.emptyValue;
+        $row.querySelector('td:nth-child(' + column + ')').innerHTML = text;
     }
 
     function stop($row) {
@@ -99,18 +108,17 @@ document.addEventListener('DOMContentLoaded', function () {
             abortTest($row);
         }
 
-        if (isBulk) {
+        if (pntFlags.bulk) {
             $pendingRows = $($pendingItems);
 
             if ($pendingRows.length) {
                 for (var i = 0; i < $pendingRows.length; i++) {
                     abortTest($pendingRows[i]);
                 }
-                stopFlag = true;
+                pntFlags.stop = true;
             }
         }
         clearDisplayAnimStyles();
-        // stopFlag = false;
         return false;
     }
 
@@ -122,9 +130,8 @@ document.addEventListener('DOMContentLoaded', function () {
             req.abort();
             delete requests[testName];
         }
-        resetRow($row, abortText);
+        resetRow($row, texts.aborted);
         setRowState($row, 'aborted');
-
     }
 
     function setMainLauncherText(text1, text2) {
@@ -133,7 +140,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function setBulkRunCompleted() {
-        isBulkCompleted = true;
+        pntFlags.bulkComplete = true;
         setMainLauncherText(getRestartText(), '');
         showTotalTime();
     }
@@ -143,13 +150,13 @@ document.addEventListener('DOMContentLoaded', function () {
             $timeCells = $table.querySelectorAll('tbody tr td:last-child');
 
         for (var i = 0; i < $timeCells.length; i++) {
-            var time = parseFloat($timeCells[i].innerText);
+            var time = parseFloat($timeCells[i].innerHTML);
             if (!isNaN(time)) {
                 totalTime += time;
             }
         }
 
-        $display.setAttribute('data-total-value', totalText.replace('%f', totalTime.toFixed(4)));
+        $display.setAttribute('data-total-value', texts.total.replace('%f', totalTime.toFixed(4)));
     }
 
     function hideTotalTime() {
@@ -165,8 +172,8 @@ document.addEventListener('DOMContentLoaded', function () {
         // disallow run multiple (manually run multiple when bulk is running)
         if ($(pendingSelector).length) return false;
 
-        if (stopFlag) {
-            stopFlag = true;
+        if (pntFlags.stop) {
+            pntFlags.stop = true;
             stop();
             return false;
         }
@@ -174,10 +181,10 @@ document.addEventListener('DOMContentLoaded', function () {
         $row = $table.querySelector(hasNotRunSelector);
 
         if ($row) {
-            $btn = $row.querySelector(testButtonSelector);
+            $btn = $row.querySelector(runSingleSelector);
 
             if (isScrollIntoViewSupported) {
-                if (isBulk && userSettings.AutoScroll) {
+                if (pntFlags.bulk && userSettings.testerAutoScroll) {
                     $btn.scrollIntoView({
                         behavior: 'auto',
                         block: 'center'
@@ -190,14 +197,16 @@ document.addEventListener('DOMContentLoaded', function () {
         } else {
             // no more rows
             clearDisplayAnimStyles();
-            isBulk = false;
+            pntFlags.bulk = false;
             setBulkRunCompleted();
         }
     }
 
     function updateDisplay() {
 
-        $counter.innerHTML = userSettings.DisplayFailedPerTotal ? $failedItems.length : $passedItems.length;
+        $display.classList.remove('all-passed');
+
+        $counter.innerHTML = userSettings.testerCountFailed ? $failedItems.length : $passedItems.length;
 
         if ($failedItems.length > 0) {
             $display.classList.add('has-failed');
@@ -206,7 +215,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         if ($passedItems.length === total) {
-            $display.classList.add('all-pass');
+            $display.classList.add('all-passed');
             setMainLauncherText(getRestartText(), '');
             showTotalTime();
         }
@@ -248,10 +257,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
             hideTotalTime();
 
-            if (isBulkCompleted) {
+            if (pntFlags.bulkComplete) {
 
-                isBulkCompleted = false;
-                itemSelector = userSettings.RetryFailed ? 'tbody tr.fail' : 'tbody tr';
+                pntFlags.bulkComplete = false;
+                itemSelector = userSettings.testerRetryFailed ? 'tbody tr.failed, tbody tr.timedout' : 'tbody tr';
                 $rows = $table.querySelectorAll(itemSelector);
 
                 for (var i = 0; i < $rows.length; i++) {
@@ -260,7 +269,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 resetMainLauncherText();
 
-                if (!userSettings.RetryFailed) {
+                if (!userSettings.testerRetryFailed) {
                     resetTable();
                     resetDisplay();
                 }
@@ -269,9 +278,9 @@ document.addEventListener('DOMContentLoaded', function () {
             e = e || window.event;
 
             if ($display.getAttribute('data-state')) {
-                stopFlag = true;
+                pntFlags.stop = true;
                 stop();
-                isBulk = false;
+                pntFlags.bulk = false;
                 return false;
             }
 
@@ -282,16 +291,14 @@ document.addEventListener('DOMContentLoaded', function () {
             }
 
             $display.setAttribute('data-state', 'running');
-            stopFlag = false;
-            isBulk = true;
+            pntFlags.stop = false;
+            pntFlags.bulk = true;
 
             runNext();
         });
 
         // run single test
-        // todo rewrite to pure js
-
-        $table.addEventListener("click", filterEventHandler(testButtonSelector, function (e) {
+        $table.addEventListener("click", filterEventHandler(runSingleSelector, function (e) {
             e = e || window.event;
             e.preventDefault();
 
@@ -300,8 +307,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 ajaxUrl = $button.getAttribute('data-url'),
                 state = getRowState($row),
                 testName = $row.getAttribute('data-test-name'),
-                request,
-                data;
+                msg = 'Error',
+                response,
+                xhr;
 
             resetRow($row);
             hideTotalTime();
@@ -310,117 +318,126 @@ document.addEventListener('DOMContentLoaded', function () {
 
             if (state === 'pending') {
                 abortTest($row);
-                stopFlag = false;
-                // stop($row);
+                pntFlags.stop = false;
                 return false;
             }
 
             if (e.metaKey || e.ctrlKey) {
-                if (isBulkCompleted) {
-                    isBulkCompleted = false;
+                if (pntFlags.bulkComplete) {
+                    pntFlags.bulkComplete = false;
                 }
                 return false;
             }
 
             setRowState($row, 'pending');
-            $display.classList.add('anim');
-            $row.querySelector('td:nth-child(1) i.fa').className = 'fa fa-refresh fa-spin';
 
-            request = new XMLHttpRequest();
-            request.open('GET', ajaxUrl, true);
+            xhr = new XMLHttpRequest();
+            xhr.open('GET', ajaxUrl, true);
+            xhr.timeout = maxTimeout;
 
-            request.setRequestHeader('Content-Type', 'application/json');
-            request.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+            xhr.setRequestHeader('Content-Type', 'application/json');
+            xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
 
-            request.onreadystatechange = function () {
-                
+            xhr.ontimeout = function () {
+                setTimedout($row);
+                setStatusText($row, COLUMN_RESULT, texts.timedout);
+
+                if (pntFlags.bulk) {
+                    runNext();
+                }
+            };
+
+            xhr.onreadystatechange = function () {
+
                 var DONE = 4,
-                    OK = 200;
+                    OK = 200,
+                    time = '';
 
-                if (request.readyState === DONE)
+                if (xhr.readyState === DONE) {
 
-                    if (request.status === OK) {
+                    var hasMissingAssertText = xhr.responseText && xhr.responseText.indexOf(missingAssertMessage) !== -1;
+
+                    xhr.getAllResponseHeaders();
+
+                    if (xhr.status === OK) {
 
                         try {
-                            
-                            // check if response is json
-                            data = JSON.parse(request.responseText);
+                            response = JSON.parse(xhr.responseText.replace(missingAssertMessage, ''));
 
-                            $row.querySelector('td:nth-child(3)').innerHTML = data.columns[2];
-                            $row.querySelector('td:nth-child(4)').innerHTML = data.columns[3];
-
-                            data.status === 'pass' ? setPass($row) : setFail($row);
+                            if (response.success) {
+                                if (hasMissingAssertText) {
+                                    setFail($row);
+                                    msg = addPre(missingAssertMessage);
+                                } else {
+                                    setPass($row);
+                                    msg = response.data.result;
+                                    time = response.data.time;
+                                }
+                            } else {
+                                setFail($row);
+                                msg = addPre(response.data.result);
+                            }
                         }
 
                         catch (ex) {
-
-                            var msg = 'Error',
-                                cleanMessage;
-
                             setFail($row);
-                            
-                            if (request.responseText && typeof request.responseText === 'string') {
-                                
-                                cleanMessage = request.responseText.replace(missingAssertMessage, '').trim();
-
-                                if(cleanMessage === '') {
-                                    msg = missingAssertMessage;
-                                    
-                                } else {
-                                    try {
-                                        data = JSON.parse(cleanMessage);
-                                        // status is "pass" because Tester probably overrides the exception
-                                        msg = data.status === 'pass' ? missingAssertMessage : data.columns[2];
-                                    } catch(unused) {
-                                        msg = request.responseText;
-                                    }
-                                }
-                            }
-
-                            $row.querySelector('td:nth-child(3)').innerHTML = '<pre>' + msg + '</pre>';
+                            msg = addPre(xhr.responseText);
                         }
 
                         finally {
-                            
-                            $row.setAttribute('data-has-run', '1');
+                            $row.querySelector('td:nth-child(3)').innerHTML = msg;
 
-                            if (isBulk) {
-                                runNext();
-                            } else {
-                                $display.classList.remove('anim');
+                            if (time) {
+                                $row.querySelector('td:nth-child(4)').innerHTML = time;
                             }
-
-                            updateDisplay();
-                            applySettings();
                         }
-                        // } else {
-                        // server error or aborted
+
+                    } else { // every other error
+
+                        if (xhr.status !== 0) {
+                            setFail($row);
+                            msg = xhr.responseText.replace(missingAssertMessage, '').trim();
+                            $row.querySelector('td:nth-child(3)').innerHTML = addPre(msg);
+                        }
                     }
+                }
+
+                $row.setAttribute('data-has-run', '1');
+
+                if (pntFlags.bulk) {
+                    runNext();
+                }
+
+                // if (!timedOut) {
+                updateDisplay();
+                applySettings();
+                // }
             };
 
-            request.send();
+            xhr.send();
 
-            requests[testName] = request;
+            requests[testName] = xhr;
         }));
     }
 
+    function addPre(msg) {
+        return '<pre>' + msg + '</pre>';
+    }
+
     function applySettings() {
+        document.getElementById('ProcessNetteTester-wrap').setAttribute('data-hide-passed', userSettings.testerHidePassed ? '1' : '0');
+        $counter.innerHTML = userSettings.testerCountFailed ? $failedItems.length : $passedItems.length;
 
-        document.getElementById('ProcessNetteTester-wrap').setAttribute('data-hide-passed', userSettings.HidePassed ? '1' : '0');
-
-        $counter.innerHTML = userSettings.DisplayFailedPerTotal ? $failedItems.length : $passedItems.length;
-
-        if (isBulkCompleted) {
+        if (pntFlags.bulkComplete) {
             setMainLauncherText(getRestartText(), '');
         }
     }
 
     function getRestartText() {
-        return userSettings.RetryFailed ? retryFailedText : restartText;
+        return userSettings.testerRetryFailed ? texts.retryFailed : texts.restart;
     }
 
     function setupControls() {
-
         var $controls = document.getElementById('controls');
 
         init();
@@ -462,8 +479,6 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         function setSetting(name, data) {
-            name = name.replace('tester', '');
-
             if (data) {
                 userSettings[name] = true;
             } else {
@@ -471,7 +486,7 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         }
     }
-});
+}
 
 // jQuery .on() equivalent
 var filterEventHandler = function (selector, callback) {

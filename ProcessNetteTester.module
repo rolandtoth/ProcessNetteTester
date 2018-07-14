@@ -4,6 +4,8 @@ use Tester\AssertException;
 use Tester\Dumper;
 use Tester\Environment;
 
+require_once __DIR__ . '/IProcessNetteTester.php';
+
 /**
  * Run Nette Tester tests within ProcessWire admin.
  * by Roland Toth (tpr)
@@ -18,21 +20,25 @@ use Tester\Environment;
  * FileCompiler=0
  */
 
-
 /**
  * Class ProcessNetteTester
  *
  * @package ProcessWire
  */
-class ProcessNetteTester extends Process
+class ProcessNetteTester extends Process implements \IProcessNetteTester
 {
-    const testDir = 'tester_tests_directory';
+    const TEST_DIR_FIELD = 'tester_tests_directory';
+    const EMPTY_VALUE = '--';
+    const TIMEOUT = 60;
 
-    protected $testDir;
-    protected $testFiles = [];
+    protected $testDirName;
+    protected $testDirPath;
+    protected $isAjax;
+    protected $testFiles;
+    protected $texts;
 
     /**
-     * Basic information about module
+     * Basic information about module.
      *
      * @return array
      */
@@ -43,7 +49,7 @@ class ProcessNetteTester extends Process
             'summary'  => __('Run Nette Tester tests within ProcessWire admin', __FILE__),
             'href'     => '',
             'author'   => 'Roland Toth',
-            'version'  => '0.0.5',
+            'version'  => '0.0.6',
             'icon'     => 'bomb',
             'requires' => 'PHP>=5.6.0, ProcessWire>=3.0.0',
             'autoload' => false,
@@ -51,204 +57,29 @@ class ProcessNetteTester extends Process
         );
     }
 
-    public function __construct()
-    {
-        $this->testDir = str_replace(
-                '//',
-                '/',
-                $this->wire('config')->paths->root . $this->wire('page')->{self::testDir}) . '/';
-
-        parent::__construct();
-    }
-
-
-    /**
-     * Run test from urlsegment
-     *
-     * @return string|array
-     */
     public function execute()
     {
-        ob_start(); // prevent ob_end_clean notice
+        $this->isAjax = $this->isAjaxRequest();
+        $this->testDirName = $this->getTestDirName();
+        $this->testDirPath = $this->getTestDirPath();
+        $this->testFiles = $this->getTestFiles();
+        $this->texts = $this->getTexts();
 
-        ini_set('max_execution_time', '120');
-
-        $isAjax = $this->wire('config')->ajax;
-        $isSuccess = false;
-        $passedText = '<em>' . $this->_('Passed') . '</em>';
-
-        if ($isAjax) {
-            $this->testFiles = array($this->wire('sanitizer')->text($this->wire('input')->get('testfile')));
-        } else {
-            $this->testFiles = $this->getFilteredFiles();
+        if (!$this->isAjaxRequest()) {
+            return $this->renderMarkup();
         }
 
-        $testFiles = $this->testFiles;
-        $testDir = $this->wire('page')->{self::testDir};
-        $total = \count($testFiles);
-
-        if ($total === 0) {
-            return sprintf($this->_('No test files found in "%s".'), $this->testDir);
-        }
-
-        if ($isAjax) {
-            require __DIR__ . '/tester/src/bootstrap.php';
-            Environment::setup();
-        }
-
-        if (!$isAjax) {
-            /** @var MarkupAdminDataTable $table */
-            $table = $this->wire('modules')->get('MarkupAdminDataTable');
-            $table->id = 'pnt-table';
-            $table->setEncodeEntities(false);
-            $table->addClass('ProcessNetteTester uk-table-striped uk-table-small');
-
-            $table->headerRow(array(
-                $this->_('File'),
-                $this->_('Run'),
-                $this->_('Message'),
-                $this->_('Runtime')
-            ));
-        }
-
-        foreach ($testFiles as $file) {
-
-            $msg = '<em>' . $this->_('--') . '</em>';
-            $rowAttrs = array('data-testfile' => $file);
-            $time_pre = microtime(true);
-
-            $buttonUrl = $this->wire('page')->httpUrl . '?testfile=' . $file;
-            $ajaxButton = '<a href="#" class="test-button ui-button ui-priority-primary" data-url="' . $buttonUrl . '"><i class="fa fa-play"></i></a>';
-
-            try {
-                ob_start(); // prevent ob_end_clean notice
-
-                if (!$isAjax) {
-                    continue;
-                }
-
-                include $file;
-
-                $isSuccess = true;
-                $msg = $passedText;
-
-            } catch (\Error $error) {
-                
-                $isSuccess = false;
-                $msg = $this->getFormattedMessage($error->getMessage() . $this->getLineInfo($error->getLine()));
-
-            } catch (AssertException $exception) {
-
-                $isSuccess = false;
-                $trace = $exception->getTrace();
-                $info = $trace[1];
-                $msg = $this->getModifiedDumperMessage($exception, $info['line']);
-
-            } catch (\Exception $exception) {
-                
-                $isSuccess = false;
-                $msg = $this->getFormattedMessage($exception->getMessage() . $this->getLineInfo($exception->getLine()));
-
-            } finally {
-
-                if ($isAjax) {
-                    echo json_encode(array(
-                        'status'  => $isSuccess ? 'pass' : 'fail',
-                        'columns' => array(
-                            '',
-                            '',
-                            $msg,
-                            $this->formatTime($exec_time = microtime(true) - $time_pre)
-                        )
-                    ));
-                    exit;
-                }
-
-                $filename = '<span title="' . $testDir . basename($file) . '">' . basename($file, 'Test.php') . '</span>';
-
-                $columns = array(
-                    '<i class="fa fa-question-circle"></i>' . $filename,
-                    $ajaxButton,
-                    $msg,
-                    $msg
-                );
-
-                $table->row($columns, $rowAttrs);
-            }
-        }
-
-        $runText = $this->_('Start');
-        $stopText = $this->_('Stop');
-        $abortText = $this->_('Aborted');
-        $restartText = $this->_('Restart');
-        $reryFailedText = $this->_('Retry failed');
-        $totalText = $this->_('Time: %f');
-
-        $display = <<< HTML
-<div
-    id="display" 
-    data-stop-text="$stopText" 
-    data-run-text="$runText"
-    data-abort-text="$abortText" 
-    data-restart-text="$restartText"
-    data-retry-failed-text="$reryFailedText"
-    data-total-text="$totalText"
->
-<h3><span class="counter">0</span><em class="separator">/</em><span class="total">$total</span><span id="main-launcher"><em>$runText</em><em>$stopText</em></span></h3>
-</div>
-HTML;
-
-        $wrapper = new InputfieldWrapper();
-        $f = wire('modules')->get('InputfieldCheckboxes');
-        $f->name = 'controls';
-        $f->label = '';
-        $f->optionColumns = 1;
-        $f->skipLabel = true;
-        $f->themeBorder = 'none';
-        $f->wrapAttr('data-no-checkall-checkboxes', '1'); // aos
-        $f->collapsed = Inputfield::collapsedNever;
-
-        $f->addOption('testerStopOnFail', $this->_('Stop on fail'));
-        $f->addOption('testerHidePassed', $this->_('Hide passed'));
-        $f->addOption('testerDisplayFailedPerTotal', $this->_('Display failed/total'));
-        $f->addOption('testerRetryFailed', $this->_('Retry failed only'));
-        $f->addOption('testerAutoScroll', $this->_('Autoscroll (bulk)'));
-
-        $wrapper->add($f);
-
-        $controls = $wrapper->render();
-        $dataTable = $table->render();
-
-        $introTest = $this->_('Loaded tests from');
-        $help = $this->_('Click the display to bulk run tests (spacebar). Ctrl+click to reset. Use the checkboxes to control behavior.');
-
-        return <<< HTML
-<div id="ProcessNetteTester-wrap">
-    $display
-    <div class="tester-data-container">
-        <div class="settings">
-            <p>
-            {$introTest} <i>{$testDir}</i>
-            <br> 
-            <small>{$help}</small>
-            </p>
-            <div id="controls">$controls</div>            
-        </div>
-        $dataTable
-    </div>            
-</div>            
-HTML;
+        return $this->getAjaxResponse();
     }
 
-    public function formatTime($duration, $decimals = 4)
+    public function isAjaxRequest()
     {
-        if (!$this->wire('config')->ajax || round($duration, 3) === 0.0) {
-            $out = '--';
-        } else {
-            $out = number_format($duration, $decimals, '.', '');
-        }
+        return $this->wire('config')->ajax;
+    }
 
-        return '<em>' . $out . '</em>';
+    public function formatTime($microtime, $decimals = 4)
+    {
+        return number_format($microtime, $decimals, '.', '');
     }
 
     public function getLineInfo($line = null)
@@ -256,13 +87,13 @@ HTML;
         $lineInfo = '';
 
         if (is_int($line)) {
-            $lineInfo = sprintf($this->_(' on line %s'), $line);
+            $lineInfo = sprintf($this->texts['lineNum'], $line);
         }
 
         return '<em class="line-info">' . $lineInfo . '</em>';
     }
 
-    public function getModifiedDumperMessage($exception, $line)
+    public function getModifiedDumperMessage($exception)
     {
         Dumper::$maxLength = 400; // default is 70
         $origMessage = $exception->origMessage;
@@ -272,7 +103,7 @@ HTML;
             '%2 ' => '</span><span class="expected">%2</span><span>'
         ]);
 
-        $msg .= $this->getLineInfo($line) . '</span>';
+        $msg .= '</span>';
 
         $actual = Dumper::toLine($exception->actual);
         $expected = Dumper::toLine($exception->expected);
@@ -282,20 +113,25 @@ HTML;
             '%2' => $expected
         ));
 
-        return $this->getFormattedMessage($msg);
+        return $msg;
     }
 
-    protected function getFormattedMessage($msg)
+    public function getTestDirName()
     {
-        return '<pre>' . $msg . '</pre>';
+        return $this->wire('page')->{self::TEST_DIR_FIELD};
     }
 
-    protected function getFilteredFiles()
+    public function getTestDirPath()
+    {
+        return $this->wire('config')->paths->root . $this->testDirName . '/';
+    }
+
+    public function getTestFiles()
     {
         $includes = !empty($_GET['include']) ? explode(',', $_GET['include']) : false;
         $excludes = !empty($_GET['exclude']) ? explode(',', $_GET['exclude']) : false;
 
-        $allFiles = $this->rglob($this->testDir . '*Test.php');
+        $allFiles = $this->rglob($this->testDirPath . '*Test.php');
 
         return array_filter($allFiles, function ($v) use ($includes, $excludes) {
 
@@ -316,12 +152,12 @@ HTML;
         });
     }
 
-    public function ___install()
+    public function install()
     {
-        if ($this->fields->get(self::testDir) === null) {
+        if ($this->fields->get(self::TEST_DIR_FIELD) === null) {
             $field = new Field();
             $field->type = $this->modules->get('FieldtypeText');
-            $field->name = self::testDir;
+            $field->name = self::TEST_DIR_FIELD;
             $field->label = $this->_('Tests directory');
             $field->description = $this->_('Directory path where test files are located (relative to site root)');
             $field->notes = $this->_('Eg. `/site/tests/`');
@@ -335,22 +171,22 @@ HTML;
             $adminTemplate->fields->add($field);
             $adminTemplate->fields->save();
 
-            $this->message($this->_("Added field '" . self::testDir . "' to admin template."));
+            $this->message($this->_("Added field '" . self::TEST_DIR_FIELD . "' to admin template."));
         }
     }
 
-    public function ___uninstall()
+    public function uninstall()
     {
         // Remove tester_tests_directory field from admin template
         $adminTemplate = $this->templates->get('admin');
 
-        if ($adminTemplate->fields->get(self::testDir)) {
-            $adminTemplate->fields->remove($adminTemplate->fields->get(self::testDir));
+        if ($adminTemplate->fields->get(self::TEST_DIR_FIELD)) {
+            $adminTemplate->fields->remove($adminTemplate->fields->get(self::TEST_DIR_FIELD));
             $adminTemplate->fields->save();
         }
 
         // Delete tester_tests_directory field
-        $field = $this->fields->get(self::testDir);
+        $field = $this->fields->get(self::TEST_DIR_FIELD);
 
         if ($field) {
             $this->fields->delete($field);
@@ -365,5 +201,208 @@ HTML;
         }
 
         return $files;
+    }
+
+    public function renderControls()
+    {
+        $wrapper = new InputfieldWrapper();
+
+        /** @var InputfieldCheckboxes $f */
+        $f = $this->wire('modules')->get('InputfieldCheckboxes');
+        $f->name = 'controls';
+        $f->label = '';
+        $f->optionColumns = 1;
+        $f->skipLabel = true;
+        $f->themeBorder = 'none';
+        $f->wrapAttr('data-no-checkall-checkboxes', '1'); // aos
+        $f->collapsed = Inputfield::collapsedNever;
+
+        $f->addOption('testerStopOnFail',
+            $this->_('Stop on fail'),
+            array(
+                'title' => $this->_('Stop bulk run if a test fails or times out')
+            ));
+
+        $f->addOption('testerHidePassed',
+            $this->_('Hide passed'),
+            array(
+                'title' => $this->_('Hide passed tests from the list')
+            ));
+
+        $f->addOption('testerCountFailed',
+            $this->_('Count failed'),
+            array(
+                'title' => $this->_('Count failed test on the main display')
+            ));
+
+        $f->addOption('testerRetryFailed',
+            $this->_('Retry failed only'),
+            array(
+                'title' => $this->_('Skip passed test on restarting a bulk run')
+            ));
+
+        $f->addOption('testerAutoScroll',
+            $this->_('Autoscroll'),
+            array(
+                'title' => $this->_('Keep currently running tests within the viewport (bulk run only)')
+            ));
+
+        $wrapper->add($f);
+
+        return $wrapper->render();
+    }
+
+    public function renderMarkup()
+    {
+        $texts = $this->texts;
+        $total = \count($this->testFiles);
+
+        if ($total === 0) {
+            return sprintf($texts['noTestsFound'], $this->testDirName);
+        }
+
+        $jsonTexts = json_encode($texts, ENT_QUOTES | HTML_ENTITIES);
+        $maxTimeout = self::TIMEOUT * 1000;
+        $controls = $this->renderControls();
+        $tableMarkup = $this->renderTable();
+
+        $display = <<< HTML
+<div id="display" data-texts='$jsonTexts' data-max-timeout="$maxTimeout">
+<h3><span class="counter">0</span></em><span class="total">$total</span><span id="main-launcher"><em>{$texts['run']}</em><em>{$texts['stop']}</em></span></h3>
+</div>
+HTML;
+
+        return <<< HTML
+<div id="ProcessNetteTester-wrap">
+    $display
+    <div class="tester-data-container">
+        <div class="settings">
+            <p>
+            {$texts['intro']} <i>{$this->testDirName}/</i>
+            <br> 
+            <small>{$texts['help']}</small>
+            </p>
+            <div id="controls">$controls</div>            
+        </div>
+        $tableMarkup
+    </div>            
+</div>            
+HTML;
+    }
+
+    public function getAjaxResponse()
+    {
+        ini_set('max_execution_time', '120');
+
+        require_once __DIR__ . '/tester/src/bootstrap.php';
+        Environment::setup();
+
+        $isSuccess = true;
+        $msg = $this->texts['passed'];
+        $file = filter_input(INPUT_GET, 'testfile');
+        $time_pre = microtime(true);
+
+        try {
+            include $file;
+
+        } catch (\Error $error) {
+
+            $isSuccess = false;
+            $msg = $error->getMessage() . $this->getLineInfo($error->getLine());
+
+        } catch (\Exception $exception) {
+
+            $isSuccess = false;
+            $errorMsg = $exception->getMessage();
+            $line = $exception->getLine();
+
+            if ($exception instanceof AssertException) {
+                $errorMsg = $this->getModifiedDumperMessage($exception);
+            }
+
+            // get line number from trace
+            $trace = $exception->getTrace();
+
+            foreach ($trace as $info) {
+                // trcce file name contains test basename
+                if (strpos($info['file'], basename($file)) !== false) {
+                    $line = $info['line'];
+                    break;
+                }
+            }
+
+            $msg = $errorMsg . $this->getLineInfo($line);
+
+        } finally {
+
+            $data = array(
+                'result' => $msg,
+                'time'   => $this->formatTime($exec_time = microtime(true) - $time_pre)
+            );
+
+            echo json_encode(array(
+                'success' => $isSuccess,
+                'data'    => $data
+            ));
+
+            exit;
+        }
+    }
+
+    public function renderTable()
+    {
+        /** @var MarkupAdminDataTable $table */
+        $table = $this->wire('modules')->get('MarkupAdminDataTable');
+        $table->id = 'pnt-table';
+        $table->setEncodeEntities(false);
+        $table->addClass('ProcessNetteTester uk-table-striped uk-table-small');
+
+        $table->headerRow(array(
+            $this->texts['name'],
+            $this->texts['run'],
+            $this->texts['result'],
+            $this->texts['time'],
+        ));
+
+        foreach ($this->testFiles as $file) {
+            $attributes = array('data-testfile' => $file);
+            $filename = '<span title="' . $this->testDirName . basename($file) . '">' . basename($file, 'Test.php') . '</span>';
+
+            $table->row(array(
+                '<i class="fa status-icon"></i>' . $filename,
+                $this->getAjaxButton($file),
+                self::EMPTY_VALUE,
+                self::EMPTY_VALUE,
+            ), $attributes);
+        }
+
+        return $table->render();
+    }
+
+    public function getAjaxButton($file)
+    {
+        return '<a href="#" class="run-single ui-button ui-priority-primary" data-url="?testfile=' . $file . '"><i class="fa"></i></a>';
+    }
+
+    public function getTexts()
+    {
+        return array(
+            'run'          => $this->_('Start'),
+            'stop'         => $this->_('Stop'),
+            'passed'       => $this->_('Passed'),
+            'aborted'      => $this->_('Aborted'),
+            'restart'      => $this->_('Restart'),
+            'retryFailed'  => $this->_('Retry failed'),
+            'timedout'     => $this->_('Timed out'),
+            'total'        => $this->_('Total: %f'),
+            'intro'        => $this->_('Loaded tests from'),
+            'help'         => $this->_('Click the display to bulk run tests (spacebar). Ctrl+click to reset. Use the checkboxes to control behaviour.'),
+            'noTestsFound' => $this->_('No test files found in "%s".'),
+            'name'         => $this->_('Name'),
+            'result'       => $this->_('Result'),
+            'time'         => $this->_('Time'),
+            'emptyValue'   => self::EMPTY_VALUE,
+            'lineNum'      => $this->_('on line %s'),
+        );
     }
 }

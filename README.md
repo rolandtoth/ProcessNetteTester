@@ -3,6 +3,10 @@ ProcessNetteTester
 
 Run [Nette Tester](https://tester.nette.org/) tests within [ProcessWire](http://processwire.com/) admin.
 
+[GitHub](https://github.com/rolandtoth/ProcessNetteTester) • [Modules Directory](https://modules.processwire.com/modules/process-nette-tester/) • [Donate](https://www.paypal.me/rolandtothpal/5)
+
+![ProcessNetteTester](https://rolandtoth.hu/pic/pw/processnettetester-v006.png "ProcessNetteTester")
+
 ## Features
 
 - AJAX interface for running Nette Tester tests, in bulk or manually
@@ -16,7 +20,7 @@ Run [Nette Tester](https://tester.nette.org/) tests within [ProcessWire](http://
 - auto scroll (optional)
 - include or exclude tests based on query parameters
 - start/stop all tests with the spacebar
-- ctrl+click on the main display to reset
+- reset one test or all tests (ctrl+click)
 
 ## Install
 
@@ -91,23 +95,26 @@ Note that aborting affects only the interface as the test in the background will
 
 You can ctrl+click on the main display or on manual run buttons to reset (eg. icons, messages, main display counter and colors, etc).
 
-## Colors
+## Statuses and colors
 
-The main display's background is colored according to test results:
+The main display and individual tests are colored according to test results:
 
-- blue: default
-- red: if there's at least one failed test
-- green: if all tests pass
+- Default (black/blue): the test hasn't been run (main display: no tests were run yet)
+- Passed (green): if the test was successful (main display: all tests passed)
+- Failed (red): if the test fails (main display: if there's at least one failed test)
+- Timed out (purple): if the test would go beyond 60 seconds to complete
+- Aborted: if the test fails (main display: if there's at least one failed test)
+- Pending: when the test is running (the icon in front of the test name animates)
 
 ## Settings
 
 The module doesn't come with a configuration page but a few setting can be set during runtime. These are stored in localStorage and survive page loads, until the browser cache is cleared. They are also "live" so eg. you can modify them during a bulk run and their effects will be applied instantly.
 
 - **Stop on fail**: if a test fails, do not continue to the next one (bulk run only)
-- **Hide passed**: hide the test from the list if it succeeds
-- **Display failed/total**: by default passed items are counted in the main display, eg 8/10 means "8 passed out of 10 tests". Check this to count the failed ones instead, which would be 2/10 in this example.
-- **Retry failed only**: if checked, on restarting the bulk mode failed tests will re-run only, passed ones will be skipped
-- **Autoscroll (bulk)**: whether to auto scroll the list of tests, only available in bulk mode
+- **Hide passed**: hide passed tests from the list
+- **Count failed**: by default passed items are counted in the main display, eg 8/10 means "8 passed out of 10 tests". Check this to count the failed ones instead, which would be 2/10 in this example.
+- **Retry failed**: if checked, on restarting a bulk run failed tests will re-run only, passed ones will be skipped
+- **Autoscroll**: whether to auto scroll the list of tests, only available during a bulk run
 
 ## Including or excluding tests
 

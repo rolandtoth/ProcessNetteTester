@@ -1,12 +1,9 @@
 /**
 default: #4197C1
-pass: #3EB998
-fail: #BC283D
+passed: #3EB998
+failed: #BC283D
+timedout: #AB47BC
  */
-
-#pnt-table i.fa {
-    margin-right: 0.5rem;
-}
 
 #pnt-table thead {
     white-space: nowrap;
@@ -21,7 +18,7 @@ fail: #BC283D
 
 #pnt-table tr th:first-child,
 #pnt-table tr td:first-child {
-    padding-left: 0.75rem !important;
+    padding-left: 1rem !important;
 }
 
 #pnt-table tr td:nth-child(3) {
@@ -50,7 +47,7 @@ fail: #BC283D
 }
 
 #pnt-table pre span {
-    margin-bottom: 0.4rem;
+    margin-bottom: 0.1rem;
 }
 
 #pnt-table pre:first-line {
@@ -64,8 +61,8 @@ fail: #BC283D
     font-weight: normal;
 }
 
-#pnt-table td:nth-child(3) > em,
-#pnt-table td:nth-child(4) > em {
+#pnt-table tr:not(.failed) td:nth-child(3),
+#pnt-table td:nth-child(4) {
     font-style: italic;
     opacity: 0.7;
 }
@@ -78,9 +75,11 @@ fail: #BC283D
 
 #pnt-table tr td:last-child {
     padding-right: 1.5rem;
+    color: inherit;
 }
 
 #pnt-table .line-info {
+    display: block;
     opacity: 0.7;
 }
 
@@ -93,8 +92,12 @@ span.expected {
     font-weight: 600 !important;
 }
 
-tr.fail td:not(:nth-child(3)) {
+tr.failed td:not(:nth-child(3)) {
     color: #BC283D;
+}
+
+tr.timedout td:not(:nth-child(3)) {
+    color: #AB47BC;
 }
 
 .tester-data-container {
@@ -165,14 +168,37 @@ tr.fail td:not(:nth-child(3)) {
     font-size: 2.5rem;
     font-weight: 300;
     line-height: 1.12;
-    padding: 1.4rem;
+    padding: 1.48rem;
     z-index: 2;
     user-select: none;
     margin: 0;
+    white-space: nowrap;
 }
 
 #display .total {
-    font-size: 1.64rem;
+    font-size: 1.4rem;
+    margin-right: -0.33rem;
+    font-weight: 400;
+    transition: 0.12s margin-right;
+}
+
+#display[data-state="running"] .total {
+    font-size: 1.04rem;
+    color: rgba(255, 255, 255, 0.48);
+    margin-right: -1.12rem;
+}
+
+#display .total::before {
+    content: '/';
+    font-style: normal;
+    display: inline-block;
+    margin: 0 0.2rem;
+    position: relative;
+    top: -0.084rem;
+}
+
+.AdminThemeUikit #display .total::before {
+    top: -0.1rem;
 }
 
 #display h3::before {
@@ -199,7 +225,8 @@ tr.fail td:not(:nth-child(3)) {
 }
 
 #display[data-state="running"] h3::before {
-    box-shadow: inset -4px -4px 0 2px rgba(0, 0, 0, 0.21);
+    transform-origin: center;
+    animation: runAnim 2s linear infinite both;
 }
 
 #display.has-failed {
@@ -210,16 +237,42 @@ tr.fail td:not(:nth-child(3)) {
     background: #BC283D;
 }
 
-#display.all-pass h3::before {
+#display.all-passed h3::before {
     background: #3EB998;
 }
 
-td .fa-check-circle {
+.status-icon {
+    margin-right: 0.66rem;
+}
+
+.status-icon::before {
+    content: '\f059';
+    font-size: 1.04rem;
+}
+
+tr.passed .status-icon::before {
+    content: '\f058';
     color: #3EB998;
 }
 
-td .fa-question-circle {
-    opacity: 0.523;
+tr.failed .status-icon::before {
+    content: '\f071';
+}
+
+tr.aborted .status-icon::before {
+    content: '\f28e';
+}
+
+tr.timedout .status-icon::before {
+    content: '\f017';
+}
+
+tr.pending .status-icon {
+    animation: fa-spin 2s infinite linear;
+}
+
+tr.pending .status-icon::before {
+    content: '\f021';
 }
 
 #main-launcher {
@@ -260,27 +313,6 @@ td .fa-question-circle {
     display: none !important;
 }
 
-#display.anim h3::before {
-    transform-origin: center;
-    animation: runAnim 2s linear infinite both;
-}
-
-@keyframes runAnim {
-    0% {
-        transform: translate3d(-50%, -50%, 0) scale(1.01) rotate(0deg);
-    }
-    100% {
-        transform: translate3d(-50%, -50%, 0) scale(1.01) rotate(360deg);
-    }
-}
-
-#display .separator {
-    font-style: normal;
-    display: inline-block;
-    margin: 0 3px;
-    backface-visibility: hidden;
-}
-
 #main-launcher em:nth-child(2),
 #display[data-state="running"] #main-launcher em:nth-child(1) {
     opacity: 0.47;
@@ -291,7 +323,7 @@ td .fa-question-circle {
     opacity: 1;
 }
 
-.test-button {
+.run-single {
     cursor: pointer;
     border: none !important;
     padding: 0 0.42rem !important;
@@ -303,17 +335,25 @@ td .fa-question-circle {
     position: relative;
 }
 
-.test-button:hover {
+.run-single:hover {
     filter: brightness(116%);
 }
 
-.test-button i {
+.run-single .fa {
     color: white;
     margin-right: 0 !important;
     transform: scale(0.64);
 }
 
-.AdminThemeUikit .test-button {
+.run-single .fa::before {
+    content: '\f04b';
+}
+
+tr.pending .run-single i::before {
+    content: '\f04d';
+}
+
+.AdminThemeUikit .run-single {
     top: -3px;
 }
 
@@ -350,33 +390,25 @@ td .fa-question-circle {
     background: #f0f6f9;
 }
 
-tr.pass .test-button {
+tr.passed .run-single {
     background: #3EB998 !important;
 }
 
-tr.fail .test-button {
+tr.failed .run-single {
     background: #BC283D !important;
 }
 
-tr.fail .test-button {
-    background: #BC283D !important;
+tr.timedout .run-single {
+    background: #AB47BC !important;
 }
 
-tr.pending .test-button:not(:hover) {
+tr.pending .run-single:not(:hover) {
     opacity: 0.513;
     filter: saturate(0);
 }
 
-tr.pending td:nth-child(2) .test-button i::before {
-    content: '\f04d';
-}
-
 tr[data-has-run="1"]:last-child {
     border-bottom: 1px solid #aaa;
-}
-
-tr.fail .test-button {
-    background: #BC283D;
 }
 
 #pnt-table tbody tr:hover {
@@ -393,6 +425,24 @@ tr.fail .test-button {
     padding-bottom: 0;
 }
 
-#ProcessNetteTester-wrap[data-hide-passed="1"] tr.pass {
+#ProcessNetteTester-wrap[data-hide-passed="1"] tr.passed {
     display: none;
+}
+
+@keyframes fa-spin {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(359deg);
+    }
+}
+
+@keyframes runAnim {
+    0% {
+        transform: translate3d(-50%, -50%, 0) rotate(0deg);
+    }
+    100% {
+        transform: translate3d(-50%, -50%, 0) rotate(360deg);
+    }
 }
