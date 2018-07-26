@@ -275,14 +275,14 @@ function startProcessNetteTester() {
                 }
             }
 
-            e = e || window.event;
-
             if ($display.getAttribute('data-state')) {
                 pntFlags.stop = true;
                 stop();
                 pntFlags.bulk = false;
                 return false;
             }
+
+            e = e || window.event;
 
             if (e.metaKey || e.ctrlKey) {
                 resetTable();
@@ -418,6 +418,18 @@ function startProcessNetteTester() {
 
             requests[testName] = xhr;
         }));
+
+        // add Tracy editor links
+
+        if (document.getElementById("tracy-debug-panel-FileEditorPanel") && window.tracyFileEditorLoader) {
+            $table.setAttribute('data-editor-available', '1');
+
+            $table.addEventListener('click', filterEventHandler('[data-editor-url]', function (e) {
+                var url = e.filterdTarget.getAttribute('data-editor-url');
+                tracyFileEditorLoader.loadFileEditor(url, 1);
+                return false;
+            }));
+        }
     }
 
     function addPre(msg) {

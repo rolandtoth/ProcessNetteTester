@@ -157,7 +157,7 @@ tr.timedout td:not(:nth-child(3)) {
 }
 
 .uk-table-striped tbody tr:nth-of-type(odd),
-.uk-table-striped > tr:nth-of-type(odd) {
+.uk-table-striped>tr:nth-of-type(odd) {
     background: #f7fafc;
 }
 
@@ -230,7 +230,8 @@ tr.timedout td:not(:nth-child(3)) {
 }
 
 #display.has-failed {
-    background: transparent; /* Reno theme */
+    background: transparent;
+    /* Reno theme */
 }
 
 #display.has-failed h3::before {
@@ -333,6 +334,7 @@ tr.pending .status-icon::before {
     background: #4197C1 !important;
     border-radius: 2px !important;
     position: relative;
+    margin-left: 0.5rem;
 }
 
 .run-single:hover {
@@ -445,4 +447,15 @@ tr[data-has-run="1"]:last-child {
     100% {
         transform: translate3d(-50%, -50%, 0) rotate(360deg);
     }
+}
+
+/* Tracy file editor */
+
+table[data-editor-available] [data-editor-url] {
+    border-bottom: 1px dotted #bbb;
+    cursor: pointer;
+} 
+
+table[data-editor-available] [data-editor-url]:hover {
+    border-bottom-color: #333;
 }

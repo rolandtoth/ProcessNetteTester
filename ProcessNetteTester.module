@@ -45,15 +45,15 @@ class ProcessNetteTester extends Process implements \IProcessNetteTester
     public static function getModuleInfo()
     {
         return array(
-            'title'    => 'ProcessNetteTester',
-            'summary'  => __('Run Nette Tester tests within ProcessWire admin', __FILE__),
-            'href'     => '',
-            'author'   => 'Roland Toth',
-            'version'  => '0.0.6',
-            'icon'     => 'bomb',
+            'title' => 'ProcessNetteTester',
+            'summary' => __('Run Nette Tester tests within ProcessWire admin', __FILE__),
+            'href' => '',
+            'author' => 'Roland Toth',
+            'version' => '0.0.7',
+            'icon' => 'bomb',
             'requires' => 'PHP>=5.6.0, ProcessWire>=3.0.0',
             'autoload' => false,
-            'singular' => true
+            'singular' => true,
         );
     }
 
@@ -100,7 +100,7 @@ class ProcessNetteTester extends Process implements \IProcessNetteTester
 
         $msg = strtr($origMessage, [
             '%1 ' => '<span class="actual">%1</span><span>',
-            '%2 ' => '</span><span class="expected">%2</span><span>'
+            '%2 ' => '</span><span class="expected">%2</span><span>',
         ]);
 
         $msg .= '</span>';
@@ -110,7 +110,7 @@ class ProcessNetteTester extends Process implements \IProcessNetteTester
 
         $msg = strtr($msg, array(
             '%1' => $actual,
-            '%2' => $expected
+            '%2' => $expected,
         ));
 
         return $msg;
@@ -140,12 +140,12 @@ class ProcessNetteTester extends Process implements \IProcessNetteTester
 
             if ($includes) {
                 return \in_array($name, $includes, true)
-                    || \in_array($nameWithoutSuffix, $includes, true);
+                || \in_array($nameWithoutSuffix, $includes, true);
             }
 
             if ($excludes) {
                 return !\in_array($name, $excludes, true)
-                    && !\in_array($nameWithoutSuffix, $excludes, true);
+                && !\in_array($nameWithoutSuffix, $excludes, true);
             }
 
             return true;
@@ -220,31 +220,31 @@ class ProcessNetteTester extends Process implements \IProcessNetteTester
         $f->addOption('testerStopOnFail',
             $this->_('Stop on fail'),
             array(
-                'title' => $this->_('Stop bulk run if a test fails or times out')
+                'title' => $this->_('Stop bulk run if a test fails or times out'),
             ));
 
         $f->addOption('testerHidePassed',
             $this->_('Hide passed'),
             array(
-                'title' => $this->_('Hide passed tests from the list')
+                'title' => $this->_('Hide passed tests from the list'),
             ));
 
         $f->addOption('testerCountFailed',
             $this->_('Count failed'),
             array(
-                'title' => $this->_('Count failed test on the main display')
+                'title' => $this->_('Count failed test on the main display'),
             ));
 
         $f->addOption('testerRetryFailed',
             $this->_('Retry failed only'),
             array(
-                'title' => $this->_('Skip passed test on restarting a bulk run')
+                'title' => $this->_('Skip passed test on restarting a bulk run'),
             ));
 
         $f->addOption('testerAutoScroll',
             $this->_('Autoscroll'),
             array(
-                'title' => $this->_('Keep currently running tests within the viewport (bulk run only)')
+                'title' => $this->_('Keep currently running tests within the viewport (bulk run only)'),
             ));
 
         $wrapper->add($f);
@@ -279,14 +279,14 @@ HTML;
         <div class="settings">
             <p>
             {$texts['intro']} <i>{$this->testDirName}/</i>
-            <br> 
+            <br>
             <small>{$texts['help']}</small>
             </p>
-            <div id="controls">$controls</div>            
+            <div id="controls">$controls</div>
         </div>
         $tableMarkup
-    </div>            
-</div>            
+    </div>
+</div>
 HTML;
     }
 
@@ -337,12 +337,12 @@ HTML;
 
             $data = array(
                 'result' => $msg,
-                'time'   => $this->formatTime($exec_time = microtime(true) - $time_pre)
+                'time' => $this->formatTime($exec_time = microtime(true) - $time_pre),
             );
 
             echo json_encode(array(
                 'success' => $isSuccess,
-                'data'    => $data
+                'data' => $data,
             ));
 
             exit;
@@ -351,6 +351,9 @@ HTML;
 
     public function renderTable()
     {
+        $isTracyInstalled = $this->wire('modules')->isInstalled('TracyDebugger');
+        $fileEditorJs = !$isTracyInstalled ? '' : '<script>' . file_get_contents($this->wire("config")->paths->TracyDebugger . 'scripts/file-editor.js') . '</script>';
+
         /** @var MarkupAdminDataTable $table */
         $table = $this->wire('modules')->get('MarkupAdminDataTable');
         $table->id = 'pnt-table';
@@ -366,17 +369,20 @@ HTML;
 
         foreach ($this->testFiles as $file) {
             $attributes = array('data-testfile' => $file);
-            $filename = '<span title="' . $this->testDirName . basename($file) . '">' . basename($file, 'Test.php') . '</span>';
+            $testPath = $this->testDirName . '/' . basename($file);
+            $editorAttr = !$isTracyInstalled ? '' : ' data-editor-url="' . ltrim($testPath, '\/') . '"';
+            $tooltipText = $testPath;
+            $testName = '<i class="fa status-icon"></i><span title="' . $tooltipText . '"' . $editorAttr . '>' . basename($file, 'Test.php') . '</span>';
 
             $table->row(array(
-                '<i class="fa status-icon"></i>' . $filename,
+                $testName,
                 $this->getAjaxButton($file),
                 self::EMPTY_VALUE,
                 self::EMPTY_VALUE,
             ), $attributes);
         }
 
-        return $table->render();
+        return $table->render() . $fileEditorJs;
     }
 
     public function getAjaxButton($file)
@@ -387,22 +393,22 @@ HTML;
     public function getTexts()
     {
         return array(
-            'run'          => $this->_('Start'),
-            'stop'         => $this->_('Stop'),
-            'passed'       => $this->_('Passed'),
-            'aborted'      => $this->_('Aborted'),
-            'restart'      => $this->_('Restart'),
-            'retryFailed'  => $this->_('Retry failed'),
-            'timedout'     => $this->_('Timed out'),
-            'total'        => $this->_('Total: %f'),
-            'intro'        => $this->_('Loaded tests from'),
-            'help'         => $this->_('Click the display to bulk run tests (spacebar). Ctrl+click to reset. Use the checkboxes to control behaviour.'),
+            'run' => $this->_('Start'),
+            'stop' => $this->_('Stop'),
+            'passed' => $this->_('Passed'),
+            'aborted' => $this->_('Aborted'),
+            'restart' => $this->_('Restart'),
+            'retryFailed' => $this->_('Retry failed'),
+            'timedout' => $this->_('Timed out'),
+            'total' => $this->_('Total: %f'),
+            'intro' => $this->_('Loaded tests from'),
+            'help' => $this->_('Click the display to bulk run tests (spacebar). Ctrl+click to reset. Use the checkboxes to control behaviour.'),
             'noTestsFound' => $this->_('No test files found in "%s".'),
-            'name'         => $this->_('Name'),
-            'result'       => $this->_('Result'),
-            'time'         => $this->_('Time'),
-            'emptyValue'   => self::EMPTY_VALUE,
-            'lineNum'      => $this->_('on line %s'),
+            'name' => $this->_('Name'),
+            'result' => $this->_('Result'),
+            'time' => $this->_('Time'),
+            'emptyValue' => self::EMPTY_VALUE,
+            'lineNum' => $this->_('on line %s'),
         );
     }
 }
