@@ -129,9 +129,9 @@ http://mydomain.com/admin/setup/tests/?exclude=test4,test5
 
 ## Tracy File Editor integration
 
-If Tracy Debugger module is installed, clicking on test names will load the File Editor with the given test.
+If Tracy Debugger module is installed and its File Editor feature is enabled, clicking on a test name will load the editor with the given test.
 
-The test name will get a dotted underline to indicate it's clickable.
+Test name will get a dotted underline indicating that it's clickable.
 
 
 ## Notes
