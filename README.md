@@ -95,16 +95,16 @@ Note that aborting affects only the interface as the test in the background will
 
 You can ctrl+click on the main display or on manual run buttons to reset (eg. icons, messages, main display counter and colors, etc).
 
-## Statuses and colors
+## Statuses, colors and icons
 
-The main display and individual tests are colored according to test results:
+The main display and individual tests are changing according to test results:
 
-- Default (black/blue): the test hasn't been run (main display: no tests were run yet)
-- Passed (green): if the test was successful (main display: all tests passed)
-- Failed (red): if the test fails (main display: if there's at least one failed test)
-- Timed out (purple): if the test would go beyond 60 seconds to complete
-- Aborted: if the test fails (main display: if there's at least one failed test)
-- Pending: when the test is running (the icon in front of the test name animates)
+- Default: the test hasn't been run, question mark icon (main display: no tests were run yet)
+- Passed: if the test was successful, green color and checkmark icon (main display: all tests passed)
+- Failed: if the test fails, red color and triangle icon with exclamation mark (main display: if there's at least one failed test)
+- Timed out: if the test runs more than 60 seconds, purple clock icon (main display: no change)
+- Pending: when the test is running, the default icon animates (main display: default state)
+- Aborted: default colors, circle test icon (main display: default state)
 
 ## Settings
 
@@ -126,6 +126,13 @@ Examples:
 http://mydomain.com/admin/setup/tests/?include=test1,test2,test3
 http://mydomain.com/admin/setup/tests/?exclude=test4,test5
 ```
+
+## Tracy File Editor integration
+
+If Tracy Debugger module is installed, clicking on test names will load the File Editor with the given test.
+
+The test name will get a dotted underline to indicate it's clickable.
+
 
 ## Notes
 
