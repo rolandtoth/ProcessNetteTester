@@ -127,13 +127,6 @@ http://mydomain.com/admin/setup/tests/?include=test1,test2,test3
 http://mydomain.com/admin/setup/tests/?exclude=test4,test5
 ```
 
-## Tracy File Editor integration
-
-If Tracy Debugger module is installed and its File Editor feature is enabled, clicking on a test name will load the editor with the given test.
-
-Test name will get a dotted underline indicating that it's clickable.
-
-
 ## Notes
 
 Some Nette Tester features are available only in the commandine mode, eg. `Environment::THREAD`, please refer to the official docs.

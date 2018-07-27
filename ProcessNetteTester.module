@@ -49,11 +49,11 @@ class ProcessNetteTester extends Process implements \IProcessNetteTester
             'summary' => __('Run Nette Tester tests within ProcessWire admin', __FILE__),
             'href' => '',
             'author' => 'Roland Toth',
-            'version' => '0.0.7',
-            'icon' => 'bomb',
+            'version' => '0.0.8',
+            'icon' => 'circle-o-notch',
             'requires' => 'PHP>=5.6.0, ProcessWire>=3.0.0',
             'autoload' => false,
-            'singular' => true,
+            'singular' => true
         );
     }
 
@@ -118,12 +118,12 @@ class ProcessNetteTester extends Process implements \IProcessNetteTester
 
     public function getTestDirName()
     {
-        return $this->wire('page')->{self::TEST_DIR_FIELD};
+        return rtrim($this->wire('page')->{self::TEST_DIR_FIELD}, '/');
     }
 
     public function getTestDirPath()
     {
-        return $this->wire('config')->paths->root . $this->testDirName . '/';
+        return $this->wire('config')->paths->root . ltrim($this->testDirName, '/') . '/';
     }
 
     public function getTestFiles()
@@ -139,13 +139,11 @@ class ProcessNetteTester extends Process implements \IProcessNetteTester
             $nameWithoutSuffix = substr($name, 0, -4);
 
             if ($includes) {
-                return \in_array($name, $includes, true)
-                || \in_array($nameWithoutSuffix, $includes, true);
+                return \in_array($name, $includes, true) || \in_array($nameWithoutSuffix, $includes, true);
             }
 
             if ($excludes) {
-                return !\in_array($name, $excludes, true)
-                && !\in_array($nameWithoutSuffix, $excludes, true);
+                return !\in_array($name, $excludes, true) && !\in_array($nameWithoutSuffix, $excludes, true);
             }
 
             return true;
@@ -352,7 +350,6 @@ HTML;
     public function renderTable()
     {
         $isTracyInstalled = $this->wire('modules')->isInstalled('TracyDebugger');
-        $fileEditorJs = !$isTracyInstalled ? '' : '<script>' . file_get_contents($this->wire("config")->paths->TracyDebugger . 'scripts/file-editor.js') . '</script>';
 
         /** @var MarkupAdminDataTable $table */
         $table = $this->wire('modules')->get('MarkupAdminDataTable');
@@ -382,7 +379,7 @@ HTML;
             ), $attributes);
         }
 
-        return $table->render() . $fileEditorJs;
+        return $table->render();
     }
 
     public function getAjaxButton($file)

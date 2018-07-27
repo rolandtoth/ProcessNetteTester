@@ -1,6 +1,18 @@
 # Changelog
 
 
+### 0.0.8 (2018-07-26)
+
+- do not load unnecessary Tracy JavaScript file
+
+
+
+### 0.0.7 (2018-07-25)
+
+- clicking on a test name loads Tracy Debugger's file editor (if installed)
+
+
+
 ### 0.0.6 (2018-07-14)
 
 - major code refactoring
