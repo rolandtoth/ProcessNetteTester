@@ -5,7 +5,7 @@ Run [Nette Tester](https://tester.nette.org/) tests within [ProcessWire](http://
 
 [GitHub](https://github.com/rolandtoth/ProcessNetteTester) • [Modules Directory](https://modules.processwire.com/modules/process-nette-tester/) • [Donate](https://www.paypal.me/rolandtothpal/5)
 
-![ProcessNetteTester](https://rolandtoth.hu/pic/pw/processnettetester-v008.png "ProcessNetteTester main")
+![ProcessNetteTester](https://rolandtoth.hu/pic/pw/processnettetester-v008.png "ProcessNetteTester screenshot")
 
 ## Features
 
@@ -21,6 +21,7 @@ Run [Nette Tester](https://tester.nette.org/) tests within [ProcessWire](http://
 - include or exclude tests based on query parameters
 - start/stop all tests with the spacebar
 - reset one test or all tests (ctrl+click)
+- Tracy File Editor integration
 
 ## Install
 
@@ -126,6 +127,13 @@ Examples:
 http://mydomain.com/admin/setup/tests/?include=test1,test2,test3
 http://mydomain.com/admin/setup/tests/?exclude=test4,test5
 ```
+
+## Tracy File Editor integration
+
+If Tracy Debugger module is installed, clicking on test names will load the File Editor with the given test.
+
+The test name will get a dotted underline to indicate it's clickable.
+
 
 ## Notes
 

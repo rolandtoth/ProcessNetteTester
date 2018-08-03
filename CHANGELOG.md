@@ -1,6 +1,12 @@
 # Changelog
 
 
+### 0.0.9 (2018-08-03)
+
+- use htmlentities() on failure messages to avoid rendering HTML markup
+
+
+
 ### 0.0.8 (2018-07-26)
 
 - do not load unnecessary Tracy JavaScript file

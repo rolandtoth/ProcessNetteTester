@@ -64,7 +64,6 @@ timedout: #AB47BC
 #pnt-table tr:not(.failed) td:nth-child(3),
 #pnt-table td:nth-child(4) {
     font-style: italic;
-    opacity: 0.7;
 }
 
 #pnt-table tr th:last-child,
@@ -115,6 +114,7 @@ tr.timedout td:not(:nth-child(3)) {
 #display {
     float: left;
     text-align: center;
+    z-index: 60;
     position: sticky;
     backface-visibility: hidden;
     top: 2.5rem;
@@ -176,7 +176,7 @@ tr.timedout td:not(:nth-child(3)) {
 
 #display .total {
     font-size: 1.4rem;
-    margin-right: -0.33rem;
+    margin-right: -0.3rem;
     font-weight: 400;
     transition: 0.12s margin-right;
 }
@@ -184,7 +184,7 @@ tr.timedout td:not(:nth-child(3)) {
 #display[data-state="running"] .total {
     font-size: 1.04rem;
     color: rgba(255, 255, 255, 0.48);
-    margin-right: -1.12rem;
+    margin-right: -1.08rem;
 }
 
 #display .total::before {
@@ -210,13 +210,13 @@ tr.timedout td:not(:nth-child(3)) {
     position: absolute;
     top: 53%;
     left: 50%;
-    transform: translate3d(-50%, -50%, 0) scale(1.01);
+    transform: translate3d(-50%, -50%, 0) scale(1.001);
     border-radius: 50%;
     padding-top: 100%;
     background: #4197c1;
     backface-visibility: hidden;
     transition: 0.1s background;
-    box-shadow: inset -4px -4px 0 2px rgba(0, 0, 0, 0.1);
+    box-shadow: inset -10px -10px 0 -7px rgba(0, 0, 0, 0.2);
 }
 
 #display h3:active::before {
@@ -326,14 +326,14 @@ tr.pending .status-icon::before {
 .run-single {
     cursor: pointer;
     border: none !important;
-    padding: 0 0.42rem !important;
+    padding: 0.1rem 0.75rem 0.2rem !important;
     outline: none;
     line-height: 1.2 !important;
-    min-width: 1.7rem;
+    min-width: 2.4rem;
     background: #4197C1 !important;
     border-radius: 2px !important;
     position: relative;
-    margin-left: 6px !important;
+    margin-left: 0.1rem !important;
 }
 
 .run-single:hover {
@@ -355,7 +355,7 @@ tr.pending .run-single i::before {
 }
 
 .AdminThemeUikit .run-single {
-    top: -3px;
+    top: -2px;
 }
 
 .filterbox {

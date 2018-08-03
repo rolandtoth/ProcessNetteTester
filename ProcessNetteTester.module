@@ -49,7 +49,7 @@ class ProcessNetteTester extends Process implements \IProcessNetteTester
             'summary' => __('Run Nette Tester tests within ProcessWire admin', __FILE__),
             'href' => '',
             'author' => 'Roland Toth',
-            'version' => '0.0.8',
+            'version' => '0.0.9',
             'icon' => 'circle-o-notch',
             'requires' => 'PHP>=5.6.0, ProcessWire>=3.0.0',
             'autoload' => false,
@@ -109,8 +109,8 @@ class ProcessNetteTester extends Process implements \IProcessNetteTester
         $expected = Dumper::toLine($exception->expected);
 
         $msg = strtr($msg, array(
-            '%1' => $actual,
-            '%2' => $expected,
+            '%1' => htmlentities($actual),
+            '%2' => htmlentities($expected),
         ));
 
         return $msg;
@@ -398,8 +398,8 @@ HTML;
             'retryFailed' => $this->_('Retry failed'),
             'timedout' => $this->_('Timed out'),
             'total' => $this->_('Total: %f'),
-            'intro' => $this->_('Loaded tests from'),
-            'help' => $this->_('Click the display to bulk run tests (spacebar). Ctrl+click to reset. Use the checkboxes to control behaviour.'),
+            'intro' => $this->_('Tests loaded from'),
+            'help' => $this->_('Click on the main counter to bulk run tests (spacebar). Ctrl+click to reset. Use the checkboxes to control behaviour.'),
             'noTestsFound' => $this->_('No test files found in "%s".'),
             'name' => $this->_('Name'),
             'result' => $this->_('Result'),
