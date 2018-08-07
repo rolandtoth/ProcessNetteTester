@@ -1,6 +1,13 @@
 # Changelog
 
 
+### 0.1.0 (2018-08-07)
+
+- added: text to indicate when a filtered tests list is loaded, plus a link to reset filtering
+- fixed: JavaScript error when zero tests were loaded
+
+
+
 ### 0.0.9 (2018-08-03)
 
 - use htmlentities() on failure messages to avoid rendering HTML markup

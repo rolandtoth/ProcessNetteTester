@@ -33,6 +33,10 @@ function startProcessNetteTester() {
         COLUMN_RESULT = 3,
         COLUMN_TIME = 4;
 
+    if(!$table) {
+        return false;
+    }
+
     initDom();
     setupControls();
     addEvents();
@@ -226,7 +230,7 @@ function startProcessNetteTester() {
 
         for (var i = 0; i < $rows.length; i++) {
             var $row = $rows[i];
-            $row.setAttribute('data-test-name', $row.querySelector('td:first-child span').innerText.replace('.php', '').toLowerCase() + '__' + i);
+            $row.setAttribute('data-test-name', $row.querySelector('td:first-child span').innerText.replace('.php', '').toLowerCase() + '__' + (i + 1));
         }
     }
 

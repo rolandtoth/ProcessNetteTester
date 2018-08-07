@@ -36,6 +36,8 @@ class ProcessNetteTester extends Process implements \IProcessNetteTester
     protected $isAjax;
     protected $testFiles;
     protected $texts;
+    protected $totalTestCount = 0;
+    protected $subsetTestCount = 0;
 
     /**
      * Basic information about module.
@@ -49,7 +51,7 @@ class ProcessNetteTester extends Process implements \IProcessNetteTester
             'summary' => __('Run Nette Tester tests within ProcessWire admin', __FILE__),
             'href' => '',
             'author' => 'Roland Toth',
-            'version' => '0.0.9',
+            'version' => '0.1.0',
             'icon' => 'circle-o-notch',
             'requires' => 'PHP>=5.6.0, ProcessWire>=3.0.0',
             'autoload' => false,
@@ -133,7 +135,7 @@ class ProcessNetteTester extends Process implements \IProcessNetteTester
 
         $allFiles = $this->rglob($this->testDirPath . '*Test.php');
 
-        return array_filter($allFiles, function ($v) use ($includes, $excludes) {
+        $subset = array_filter($allFiles, function ($v) use ($includes, $excludes) {
 
             $name = strtolower(basename($v, '.php'));
             $nameWithoutSuffix = substr($name, 0, -4);
@@ -148,6 +150,11 @@ class ProcessNetteTester extends Process implements \IProcessNetteTester
 
             return true;
         });
+
+        $this->totalTestCount = \count($allFiles);
+        $this->subsetTestCount = \count($subset);
+
+        return $subset;
     }
 
     public function install()
@@ -253,7 +260,7 @@ class ProcessNetteTester extends Process implements \IProcessNetteTester
     public function renderMarkup()
     {
         $texts = $this->texts;
-        $total = \count($this->testFiles);
+        $total = $this->totalTestCount;
 
         if ($total === 0) {
             return sprintf($texts['noTestsFound'], $this->testDirName);
@@ -264,26 +271,30 @@ class ProcessNetteTester extends Process implements \IProcessNetteTester
         $controls = $this->renderControls();
         $tableMarkup = $this->renderTable();
 
+        if($this->subsetTestCount < $this->totalTestCount) {
+            $introText = sprintf($texts['introSubset'], $this->subsetTestCount, '<a href="' . wire('page')->url . '">' . $total . '</a>');
+        } else {
+            $introText = $texts['intro'];
+        }
+
         $display = <<< HTML
 <div id="display" data-texts='$jsonTexts' data-max-timeout="$maxTimeout">
-<h3><span class="counter">0</span></em><span class="total">$total</span><span id="main-launcher"><em>{$texts['run']}</em><em>{$texts['stop']}</em></span></h3>
+<h3><span class="counter">0</span></em><span class="total">{$this->subsetTestCount}</span><span id="main-launcher"><em>{$texts['run']}</em><em>{$texts['stop']}</em></span></h3>
 </div>
 HTML;
 
         return <<< HTML
 <div id="ProcessNetteTester-wrap">
-    $display
-    <div class="tester-data-container">
-        <div class="settings">
-            <p>
-            {$texts['intro']} <i>{$this->testDirName}/</i>
-            <br>
-            <small>{$texts['help']}</small>
-            </p>
-            <div id="controls">$controls</div>
-        </div>
-        $tableMarkup
+$display
+<div class="tester-data-container">
+    <div class="settings">
+        <p>{$introText} <i>{$this->testDirName}</i><br>
+        <small>{$texts['help']}</small>
+        </p>
+        <div id="controls">$controls</div>
     </div>
+    $tableMarkup
+</div>
 </div>
 HTML;
     }
@@ -398,7 +409,8 @@ HTML;
             'retryFailed' => $this->_('Retry failed'),
             'timedout' => $this->_('Timed out'),
             'total' => $this->_('Total: %f'),
-            'intro' => $this->_('Tests loaded from'),
+            'intro' => $this->_('All tests loaded from'),
+            'introSubset' => $this->_('%d of %s tests loaded from'),
             'help' => $this->_('Click on the main counter to bulk run tests (spacebar). Ctrl+click to reset. Use the checkboxes to control behaviour.'),
             'noTestsFound' => $this->_('No test files found in "%s".'),
             'name' => $this->_('Name'),
