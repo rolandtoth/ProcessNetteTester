@@ -155,9 +155,10 @@ tr.timedout td:not(:nth-child(3)) {
     margin-top: 1.25rem;
 }
 
+#pnt-table tbody tr:nth-of-type(odd),
 .uk-table-striped tbody tr:nth-of-type(odd),
 .uk-table-striped>tr:nth-of-type(odd) {
-    background: #f7fafc;
+    background: #f4f8fa;
 }
 
 #display h3 {
@@ -324,9 +325,10 @@ tr.pending .status-icon::before {
 }
 
 .run-single {
+    position: relative;
     cursor: pointer;
     border: none !important;
-    padding: 0.1rem 0.75rem 0.2rem !important;
+    padding: 0.15rem 0.75rem !important;
     outline: none;
     line-height: 1.2 !important;
     min-width: 2.4rem;
@@ -334,6 +336,16 @@ tr.pending .status-icon::before {
     border-radius: 2px !important;
     position: relative;
     margin-left: 0.1rem !important;
+    vertical-align: top !important;
+}
+
+.run-single::before {
+    content: '';
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    bottom: -8px;
+    left: -8px;
 }
 
 .run-single:hover {
@@ -354,10 +366,6 @@ tr.pending .run-single i::before {
     content: '\f04d';
 }
 
-.AdminThemeUikit .run-single {
-    top: -2px;
-}
-
 .filterbox {
     margin-bottom: 1.5rem !important;
 }
@@ -372,7 +380,7 @@ tr.pending .run-single i::before {
 
 #pnt-table tbody tr.pending {
     user-select: none;
-    border-bottom: 1px solid #acbcc2 !important;
+    border-bottom: 1px solid #6c8dae !important;
 }
 
 #pnt-table thead tr {
@@ -385,10 +393,8 @@ tr.pending .run-single i::before {
 
 #pnt-table td {
     border: none !important;
-}
-
-#pnt-table tbody tr:nth-of-type(odd) {
-    background: #f0f6f9;
+    padding-top: 8px;
+    padding-bottom: 8px;
 }
 
 tr.passed .run-single {
@@ -410,10 +416,6 @@ tr.pending .run-single:not(:hover) {
 
 tr[data-has-run="1"]:last-child {
     border-bottom: 1px solid #aaa;
-}
-
-#pnt-table tbody tr:hover {
-    background: #FFFFDD;
 }
 
 #controls label {

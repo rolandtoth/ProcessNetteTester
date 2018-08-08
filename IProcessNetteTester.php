@@ -20,13 +20,6 @@ interface IProcessNetteTester
     public function getTestDirPath();
 
     /**
-     * Check if it is an ajax request.
-     *
-     * @return bool
-     */
-    public function isAjaxRequest();
-
-    /**
      * Get application HTML markup.
      *
      * @return string

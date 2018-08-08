@@ -31,13 +31,12 @@ class ProcessNetteTester extends Process implements \IProcessNetteTester
     const EMPTY_VALUE = '--';
     const TIMEOUT = 60;
 
-    protected $testDirName;
-    protected $testDirPath;
-    protected $isAjax;
-    protected $testFiles;
-    protected $texts;
-    protected $totalTestCount = 0;
-    protected $subsetTestCount = 0;
+    private $testDirName;
+    private $testDirPath;
+    private $testFiles;
+    private $texts;
+    private $totalTestCount = 0;
+    private $subsetTestCount = 0;
 
     /**
      * Basic information about module.
@@ -51,32 +50,27 @@ class ProcessNetteTester extends Process implements \IProcessNetteTester
             'summary' => __('Run Nette Tester tests within ProcessWire admin', __FILE__),
             'href' => '',
             'author' => 'Roland Toth',
-            'version' => '0.1.0',
+            'version' => '0.1.1',
             'icon' => 'circle-o-notch',
             'requires' => 'PHP>=5.6.0, ProcessWire>=3.0.0',
             'autoload' => false,
-            'singular' => true
+            'singular' => true,
         );
     }
 
     public function execute()
     {
-        $this->isAjax = $this->isAjaxRequest();
+        $this->texts = $this->getTexts();
+        
+        if ($this->wire('config')->ajax) {
+            return $this->getAjaxResponse();
+        }
+
         $this->testDirName = $this->getTestDirName();
         $this->testDirPath = $this->getTestDirPath();
         $this->testFiles = $this->getTestFiles();
-        $this->texts = $this->getTexts();
 
-        if (!$this->isAjaxRequest()) {
-            return $this->renderMarkup();
-        }
-
-        return $this->getAjaxResponse();
-    }
-
-    public function isAjaxRequest()
-    {
-        return $this->wire('config')->ajax;
+        return $this->renderMarkup();
     }
 
     public function formatTime($microtime, $decimals = 4)
@@ -97,7 +91,7 @@ class ProcessNetteTester extends Process implements \IProcessNetteTester
 
     public function getModifiedDumperMessage($exception)
     {
-        Dumper::$maxLength = 400; // default is 70
+        Dumper::$maxLength = 800; // default is 70
         $origMessage = $exception->origMessage;
 
         $msg = strtr($origMessage, [
@@ -271,7 +265,7 @@ class ProcessNetteTester extends Process implements \IProcessNetteTester
         $controls = $this->renderControls();
         $tableMarkup = $this->renderTable();
 
-        if($this->subsetTestCount < $this->totalTestCount) {
+        if ($this->subsetTestCount < $this->totalTestCount) {
             $introText = sprintf($texts['introSubset'], $this->subsetTestCount, '<a href="' . wire('page')->url . '">' . $total . '</a>');
         } else {
             $introText = $texts['intro'];
@@ -366,7 +360,7 @@ HTML;
         $table = $this->wire('modules')->get('MarkupAdminDataTable');
         $table->id = 'pnt-table';
         $table->setEncodeEntities(false);
-        $table->addClass('ProcessNetteTester uk-table-striped uk-table-small');
+        $table->addClass('ProcessNetteTester uk-table-striped');
 
         $table->headerRow(array(
             $this->texts['name'],

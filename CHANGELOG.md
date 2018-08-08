@@ -1,10 +1,16 @@
 # Changelog
 
 
+### 0.1.1 (2018-08-08)
+
+- minor code refactoring, CSS improvements
+
+
+
 ### 0.1.0 (2018-08-07)
 
 - added: text to indicate when a filtered tests list is loaded, plus a link to reset filtering
-- fixed: JavaScript error when zero tests were loaded
+- fixed: JavaScript error if no tests are loaded
 
 
 
