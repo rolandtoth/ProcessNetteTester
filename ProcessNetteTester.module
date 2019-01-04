@@ -1,5 +1,6 @@
 <?php namespace ProcessWire;
 
+use Tester\Assert;
 use Tester\AssertException;
 use Tester\Dumper;
 use Tester\Environment;
@@ -50,7 +51,7 @@ class ProcessNetteTester extends Process implements \IProcessNetteTester
             'summary' => __('Run Nette Tester tests within ProcessWire admin', __FILE__),
             'href' => '',
             'author' => 'Roland Toth',
-            'version' => '0.1.1',
+            'version' => '0.1.2',
             'icon' => 'circle-o-notch',
             'requires' => 'PHP>=5.6.0, ProcessWire>=3.0.0',
             'autoload' => false,
@@ -246,6 +247,12 @@ class ProcessNetteTester extends Process implements \IProcessNetteTester
                 'title' => $this->_('Keep currently running tests within the viewport (bulk run only)'),
             ));
 
+        $f->addOption('testerShowBreadcrumbs',
+            $this->_('Show breadcrumbs'),
+            array(
+                'title' => $this->_('Show parent directories above test names'),
+            ));
+
         $wrapper->add($f);
 
         return $wrapper->render();
@@ -301,6 +308,7 @@ HTML;
         Environment::setup();
 
         $isSuccess = true;
+        $testMethodCount = 0;
         $msg = $this->texts['passed'];
         $file = filter_input(INPUT_GET, 'testfile');
         $time_pre = microtime(true);
@@ -309,7 +317,6 @@ HTML;
             include $file;
 
         } catch (\Error $error) {
-
             $isSuccess = false;
             $msg = $error->getMessage() . $this->getLineInfo($error->getLine());
 
@@ -327,7 +334,7 @@ HTML;
             $trace = $exception->getTrace();
 
             foreach ($trace as $info) {
-                // trcce file name contains test basename
+                // trace file name contains test basename
                 if (strpos($info['file'], basename($file)) !== false) {
                     $line = $info['line'];
                     break;
@@ -338,8 +345,19 @@ HTML;
 
         } finally {
 
+            $testInfo = '';
+            
+            if ($isSuccess) {
+                $assertionsCount = Assert::$counter;
+                $testMethodCount = $this->countTestMethods($file);
+
+                $methodsText = $this->getTexts($testMethodCount === 1 ? 'test' : 'tests');
+                $assertionsText = $this->getTexts($assertionsCount === 1 ? 'assertion' : 'assertions');
+                $testInfo = "<i class='test-info'>$testMethodCount $methodsText, $assertionsCount $assertionsText</i>";
+            }
+
             $data = array(
-                'result' => $msg,
+                'result' => $msg . $testInfo,
                 'time' => $this->formatTime($exec_time = microtime(true) - $time_pre),
             );
 
@@ -350,6 +368,26 @@ HTML;
 
             exit;
         }
+    }
+
+    public function countTestMethods($file) {
+        $namespace = $this->extractNamespace($file);
+
+        if($namespace === null) {
+            return 0;
+        }
+
+        $methods = get_class_methods('\\' . trim($namespace, '\\') . '\\' . basename($file, '.php'));
+
+        if(!\is_array($methods)) {
+            return 0;
+        }
+
+        $methods = array_filter($methods, function($name) {
+            return substr($name, 0, 4) === 'test';
+        });
+
+        return count($methods);
     }
 
     public function renderTable()
@@ -374,7 +412,12 @@ HTML;
             $testPath = $this->testDirName . '/' . basename($file);
             $editorAttr = !$isTracyInstalled ? '' : ' data-editor-url="' . ltrim($testPath, '\/') . '"';
             $tooltipText = $testPath;
-            $testName = '<i class="fa status-icon"></i><span title="' . $tooltipText . '"' . $editorAttr . '>' . basename($file, 'Test.php') . '</span>';
+            $breadcrumb = str_replace($this->testDirPath, '', $file);
+            $breadcrumb = str_replace(basename($file), '', $breadcrumb);
+            if($breadcrumb !== '') {
+                $breadcrumb = '<span class="breadcrumb">' . $breadcrumb . '</span>';
+            }
+            $testName = '<i class="fa status-icon"></i><span title="' . $tooltipText . '"' . $editorAttr . '>' . $breadcrumb . basename($file, 'Test.php') . '</span>';
 
             $table->row(array(
                 $testName,
@@ -392,9 +435,13 @@ HTML;
         return '<a href="#" class="run-single ui-button ui-priority-primary" data-url="?testfile=' . $file . '"><i class="fa"></i></a>';
     }
 
-    public function getTexts()
+    public function getTexts($key = null)
     {
-        return array(
+        $texts = array(
+            'test' => $this->_('test'),
+            'tests' => $this->_('tests'),
+            'assertion' => $this->_('assertion'),
+            'assertions' => $this->_('assertions'),
             'run' => $this->_('Start'),
             'stop' => $this->_('Stop'),
             'passed' => $this->_('Passed'),
@@ -413,5 +460,25 @@ HTML;
             'emptyValue' => self::EMPTY_VALUE,
             'lineNum' => $this->_('on line %s'),
         );
+
+        return $key === null ? $texts : $texts[$key];
+    }
+
+    protected function extractNamespace($file) {
+        $ns = null;
+        $handle = fopen($file, "r");
+        if ($handle) {
+            while (($line = fgets($handle)) !== false) {
+                $line = str_replace('<?php', '', $line);
+                $line = trim($line, " \t\r\n\0");
+                if (strpos($line, 'namespace') === 0) {
+                    $parts = explode(' ', $line);
+                    $ns = rtrim(trim($parts[1]), ';');
+                    break;
+                }
+            }
+            fclose($handle);
+        }
+        return $ns;
     }
 }

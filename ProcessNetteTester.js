@@ -22,7 +22,8 @@ function startProcessNetteTester() {
             testerHidePassed: false,
             testerCountFailed: false,
             testerRetryFailed: false,
-            testerAutoScroll: false
+            testerAutoScroll: false,
+            testerShowBreadcrumbs: true
         },
         requests = {},
         pntFlags = {
@@ -33,7 +34,7 @@ function startProcessNetteTester() {
         COLUMN_RESULT = 3,
         COLUMN_TIME = 4;
 
-    if(!$table) {
+    if (!$table) {
         return false;
     }
 
@@ -381,14 +382,10 @@ function startProcessNetteTester() {
                                 setFail($row);
                                 msg = addPre(response.data.result);
                             }
-                        }
-
-                        catch (ex) {
+                        } catch (ex) {
                             setFail($row);
                             msg = addPre(xhr.responseText);
-                        }
-
-                        finally {
+                        } finally {
                             $row.querySelector('td:nth-child(3)').innerHTML = msg;
 
                             if (time) {
@@ -441,7 +438,10 @@ function startProcessNetteTester() {
     }
 
     function applySettings() {
-        document.getElementById('ProcessNetteTester-wrap').setAttribute('data-hide-passed', userSettings.testerHidePassed ? '1' : '0');
+        var $wrap = document.getElementById('ProcessNetteTester-wrap');
+
+        $wrap.setAttribute('data-hide-passed', userSettings.testerHidePassed ? '1' : '0');
+        $wrap.setAttribute('data-show-breadcrumb', userSettings.testerShowBreadcrumbs ? '1' : '0');
         $counter.innerHTML = userSettings.testerCountFailed ? $failedItems.length : $passedItems.length;
 
         if (pntFlags.bulkComplete) {

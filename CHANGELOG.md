@@ -1,6 +1,13 @@
 # Changelog
 
 
+### 0.1.2 (2019-01-04)
+
+- show test method and assertion count for passed tests
+- display breadcrumb above test file name (configurable)
+
+
+
 ### 0.1.1 (2018-08-08)
 
 - minor code refactoring, CSS improvements
