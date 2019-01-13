@@ -1,6 +1,15 @@
 # Changelog
 
 
+### 0.1.3 (2019-01-13)
+
+- tooltip path fix
+- update table sort after each test
+- disable sorting on START column
+- change tests/assertions separator from comma to middle dot
+
+
+
 ### 0.1.2 (2019-01-04)
 
 - show test method and assertion count for passed tests

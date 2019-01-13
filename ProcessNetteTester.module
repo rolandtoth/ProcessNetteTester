@@ -29,7 +29,7 @@ require_once __DIR__ . '/IProcessNetteTester.php';
 class ProcessNetteTester extends Process implements \IProcessNetteTester
 {
     const TEST_DIR_FIELD = 'tester_tests_directory';
-    const EMPTY_VALUE = '--';
+    const EMPTY_VALUE = '';
     const TIMEOUT = 60;
 
     private $testDirName;
@@ -51,10 +51,10 @@ class ProcessNetteTester extends Process implements \IProcessNetteTester
             'summary' => __('Run Nette Tester tests within ProcessWire admin', __FILE__),
             'href' => '',
             'author' => 'Roland Toth',
-            'version' => '0.1.2',
+            'version' => '0.1.3',
             'icon' => 'circle-o-notch',
             'requires' => 'PHP>=5.6.0, ProcessWire>=3.0.0',
-            'autoload' => false,
+            'autoload' => 'process=ProcessNetteTester',
             'singular' => true,
         );
     }
@@ -353,7 +353,7 @@ HTML;
 
                 $methodsText = $this->getTexts($testMethodCount === 1 ? 'test' : 'tests');
                 $assertionsText = $this->getTexts($assertionsCount === 1 ? 'assertion' : 'assertions');
-                $testInfo = "<i class='test-info'>$testMethodCount $methodsText, $assertionsCount $assertionsText</i>";
+                $testInfo = "<i class='test-info'>$testMethodCount $methodsText &middot; $assertionsCount $assertionsText</i>";
             }
 
             $data = array(
@@ -411,8 +411,8 @@ HTML;
             $attributes = array('data-testfile' => $file);
             $testPath = $this->testDirName . '/' . basename($file);
             $editorAttr = !$isTracyInstalled ? '' : ' data-editor-url="' . ltrim($testPath, '\/') . '"';
-            $tooltipText = $testPath;
             $breadcrumb = str_replace($this->testDirPath, '', $file);
+            $tooltipText = $this->testDirName . '/' . $breadcrumb;
             $breadcrumb = str_replace(basename($file), '', $breadcrumb);
             if($breadcrumb !== '') {
                 $breadcrumb = '<span class="breadcrumb">' . $breadcrumb . '</span>';

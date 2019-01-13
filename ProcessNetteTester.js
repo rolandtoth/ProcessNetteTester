@@ -224,6 +224,11 @@ function startProcessNetteTester() {
             setMainLauncherText(getRestartText(), '');
             showTotalTime();
         }
+
+        // update tablesorter
+        if (window.jQuery) {
+            jQuery($table).trigger('update');
+        }
     }
 
     function initDom() {
@@ -386,10 +391,16 @@ function startProcessNetteTester() {
                             setFail($row);
                             msg = addPre(xhr.responseText);
                         } finally {
-                            $row.querySelector('td:nth-child(3)').innerHTML = msg;
+                            var $msgRow = $row.querySelector('td:nth-child(3)');
+
+                            $msgRow.innerHTML = msg;
+                            setBlankClass($msgRow);
 
                             if (time) {
-                                $row.querySelector('td:nth-child(4)').innerHTML = time;
+                                var $timeRow = $row.querySelector('td:nth-child(4)');
+
+                                $timeRow.innerHTML = time;
+                                setBlankClass($timeRow);
                             }
                         }
 
@@ -430,6 +441,14 @@ function startProcessNetteTester() {
                 tracyFileEditorLoader.loadFileEditor(url, 1);
                 return false;
             }));
+        }
+    }
+
+    function setBlankClass($el) {
+        if ($el.innerHtml === '') {
+            $el.classList.add('blank');
+        } else {
+            $el.classList.remove('blank');
         }
     }
 

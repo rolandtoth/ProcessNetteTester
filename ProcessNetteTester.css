@@ -82,6 +82,12 @@ timedout: #AB47BC
     color: inherit;
 }
 
+#pnt-table td.blank::after {
+    content: '--';
+    opacity: 0.5;
+    font-style: italic;
+}
+
 #pnt-table .line-info {
     display: block;
     opacity: 0.7;
@@ -453,6 +459,15 @@ tr[data-has-run="1"]:last-child {
 
 #ProcessNetteTester-wrap[data-show-breadcrumb="0"] .breadcrumb {
     display: none;
+}
+
+#pnt-table.AdminDataTableSortable tr.tablesorter-headerRow th:nth-child(2) {
+    cursor: default !important;
+    pointer-events: none !important;
+}
+
+#pnt-table.AdminDataTableSortable tr.tablesorter-headerRow th:nth-child(2) .tablesorter-header-inner::after {
+    display: none !important;
 }
 
 @keyframes fa-spin {
