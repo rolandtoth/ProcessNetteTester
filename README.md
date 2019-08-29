@@ -5,7 +5,7 @@ Run [Nette Tester](https://tester.nette.org/) tests within [ProcessWire](http://
 
 [GitHub](https://github.com/rolandtoth/ProcessNetteTester) • [Modules Directory](https://modules.processwire.com/modules/process-nette-tester/) • [Donate](https://www.paypal.me/rolandtothpal/5)
 
-![ProcessNetteTester](/pic.rolandtoth.hu/pw/processnettetester-v008.png "ProcessNetteTester screenshot")
+![ProcessNetteTester](http://pic.rolandtoth.hu/pw/processnettetester-v008.png "ProcessNetteTester screenshot")
 
 ## Features
 
