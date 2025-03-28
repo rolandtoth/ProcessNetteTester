@@ -5,6 +5,8 @@
  * Copyright (c) 2009 David Grudl (https://davidgrudl.com)
  */
 
+declare(strict_types=1);
+
 namespace Tester\Runner;
 
 
@@ -13,49 +15,39 @@ namespace Tester\Runner;
  */
 class Test
 {
-	const
-		PREPARED = 0,
-		FAILED = 1,
-		PASSED = 2,
-		SKIPPED = 3;
+	public const
+		Prepared = 0,
+		Failed = 1,
+		Passed = 2,
+		Skipped = 3;
 
-	/** @var string|null */
-	public $title;
+	/** @deprecated */
+	public const
+		PREPARED = self::Prepared,
+		FAILED = self::Failed,
+		PASSED = self::Passed,
+		SKIPPED = self::Skipped;
 
-	/** @var string|null */
-	public $message;
-
-	/** @var string */
-	public $stdout = '';
-
-	/** @var string */
-	public $stderr = '';
-
-	/** @var string */
-	private $file;
-
-	/** @var int */
-	private $result = self::PREPARED;
+	public ?string $title;
+	public ?string $message = null;
+	public string $stdout = '';
+	public string $stderr = '';
+	private string $file;
+	private int $result = self::Prepared;
+	private ?float $duration = null;
 
 	/** @var string[]|string[][] */
 	private $args = [];
 
 
-	/**
-	 * @param  string
-	 * @param  string
-	 */
-	public function __construct($file, $title = null)
+	public function __construct(string $file, ?string $title = null)
 	{
 		$this->file = $file;
 		$this->title = $title;
 	}
 
 
-	/**
-	 * @return string
-	 */
-	public function getFile()
+	public function getFile(): string
 	{
 		return $this->file;
 	}
@@ -64,48 +56,66 @@ class Test
 	/**
 	 * @return string[]|string[][]
 	 */
-	public function getArguments()
+	public function getArguments(): array
 	{
 		return $this->args;
 	}
 
 
-	/**
-	 * @return string
-	 */
-	public function getSignature()
+	public function getSignature(): string
 	{
-		$args = implode(' ', array_map(function ($arg) {
-			return is_array($arg) ? "$arg[0]=$arg[1]" : $arg;
-		}, $this->args));
+		$args = implode(' ', array_map(fn($arg): string => is_array($arg) ? "$arg[0]=$arg[1]" : $arg, $this->args));
 
 		return $this->file . ($args ? " $args" : '');
 	}
 
 
-	/**
-	 * @return int
-	 */
-	public function getResult()
+	public function getResult(): int
 	{
 		return $this->result;
 	}
 
 
-	/**
-	 * @return bool
-	 */
-	public function hasResult()
+	public function hasResult(): bool
 	{
-		return $this->result !== self::PREPARED;
+		return $this->result !== self::Prepared;
 	}
 
 
 	/**
-	 * @param  array $args
+	 * Duration in seconds.
+	 */
+	public function getDuration(): ?float
+	{
+		return $this->duration;
+	}
+
+
+	/**
+	 * Full output (stdout + stderr)
+	 */
+	public function getOutput(): string
+	{
+		return $this->stdout . ($this->stderr ? "\nSTDERR:\n" . $this->stderr : '');
+	}
+
+
+	public function withTitle(string $title): self
+	{
+		if ($this->hasResult()) {
+			throw new \LogicException('Cannot change title to test which already has a result.');
+		}
+
+		$me = clone $this;
+		$me->title = $title;
+		return $me;
+	}
+
+
+	/**
 	 * @return static
 	 */
-	public function withArguments(array $args)
+	public function withArguments(array $args): self
 	{
 		if ($this->hasResult()) {
 			throw new \LogicException('Cannot change arguments of test which already has a result.');
@@ -119,16 +129,15 @@ class Test
 					: [$name, "$value"];
 			}
 		}
+
 		return $me;
 	}
 
 
 	/**
-	 * @param  int
-	 * @param  string|null
 	 * @return static
 	 */
-	public function withResult($result, $message)
+	public function withResult(int $result, ?string $message, ?float $duration = null): self
 	{
 		if ($this->hasResult()) {
 			throw new \LogicException("Result of test is already set to $this->result with message '$this->message'.");
@@ -137,6 +146,7 @@ class Test
 		$me = clone $this;
 		$me->result = $result;
 		$me->message = $message;
+		$me->duration = $duration;
 		return $me;
 	}
 }

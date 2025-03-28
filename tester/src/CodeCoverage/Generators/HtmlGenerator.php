@@ -5,7 +5,11 @@
  * Copyright (c) 2009 David Grudl (https://davidgrudl.com)
  */
 
+declare(strict_types=1);
+
 namespace Tester\CodeCoverage\Generators;
+
+use Tester\Helpers;
 
 
 /**
@@ -13,39 +17,33 @@ namespace Tester\CodeCoverage\Generators;
  */
 class HtmlGenerator extends AbstractGenerator
 {
-	/** @var array */
-	public static $classes = [
-		self::CODE_TESTED => 't', // tested
-		self::CODE_UNTESTED => 'u', // untested
-		self::CODE_DEAD => 'dead', // dead code
+	private const Classes = [
+		self::LineTested => 't', // tested
+		self::LineUntested => 'u', // untested
+		self::LineDead => 'dead', // dead code
 	];
-
-	/** @var string */
-	private $title;
-
-	/** @var array */
-	private $files = [];
+	private ?string $title;
+	private array $files = [];
 
 
 	/**
-	 * @param  string  path to coverage.dat file
-	 * @param  string  path to source file/directory
-	 * @param  string
+	 * @param  string  $file  path to coverage.dat file
+	 * @param  array   $sources  files/directories
 	 */
-	public function __construct($file, $source = null, $title = null)
+	public function __construct(string $file, array $sources = [], ?string $title = null)
 	{
-		parent::__construct($file, $source);
+		parent::__construct($file, $sources);
 		$this->title = $title;
 	}
 
 
-	protected function renderSelf()
+	protected function renderSelf(): void
 	{
 		$this->setupHighlight();
 		$this->parse();
 
 		$title = $this->title;
-		$classes = self::$classes;
+		$classes = self::Classes;
 		$files = $this->files;
 		$coveredPercent = $this->getCoveredPercent();
 
@@ -53,7 +51,7 @@ class HtmlGenerator extends AbstractGenerator
 	}
 
 
-	private function setupHighlight()
+	private function setupHighlight(): void
 	{
 		ini_set('highlight.comment', 'hc');
 		ini_set('highlight.default', 'hd');
@@ -63,13 +61,14 @@ class HtmlGenerator extends AbstractGenerator
 	}
 
 
-	private function parse()
+	private function parse(): void
 	{
 		if (count($this->files) > 0) {
 			return;
 		}
 
 		$this->files = [];
+		$commonSourcesPath = Helpers::findCommonDirectory($this->sources) . DIRECTORY_SEPARATOR;
 		foreach ($this->getSourceIterator() as $entry) {
 			$entry = (string) $entry;
 
@@ -79,13 +78,15 @@ class HtmlGenerator extends AbstractGenerator
 			if ($loaded) {
 				$lines = $this->data[$entry];
 				foreach ($lines as $flag) {
-					if ($flag >= self::CODE_UNTESTED) {
+					if ($flag >= self::LineUntested) {
 						$total++;
 					}
-					if ($flag >= self::CODE_TESTED) {
+
+					if ($flag >= self::LineTested) {
 						$covered++;
 					}
 				}
+
 				$coverage = round($covered * 100 / $total);
 				$this->totalSum += $total;
 				$this->coveredSum += $covered;
@@ -95,7 +96,7 @@ class HtmlGenerator extends AbstractGenerator
 
 			$light = $total ? $total < 5 : count(file($entry)) < 50;
 			$this->files[] = (object) [
-				'name' => str_replace((is_dir($this->source) ? $this->source : dirname($this->source)) . DIRECTORY_SEPARATOR, '', $entry),
+				'name' => str_replace($commonSourcesPath, '', $entry),
 				'file' => $entry,
 				'lines' => $lines,
 				'coverage' => $coverage,

@@ -5,7 +5,10 @@
  * Copyright (c) 2009 David Grudl (https://davidgrudl.com)
  */
 
+declare(strict_types=1);
+
 namespace Tester\CodeCoverage;
+use pcov;
 
 
 /**
@@ -13,17 +16,27 @@ namespace Tester\CodeCoverage;
  */
 class Collector
 {
+	public const
+		EnginePcov = 'PCOV',
+		EnginePhpdbg = 'PHPDBG',
+		EngineXdebug = 'Xdebug';
+
 	/** @var resource */
 	private static $file;
-
-	/** @var string */
-	private static $collector;
+	private static string $engine;
 
 
-	/**
-	 * @return bool
-	 */
-	public static function isStarted()
+	public static function detectEngines(): array
+	{
+		return array_filter([
+			extension_loaded('pcov') ? [self::EnginePcov, phpversion('pcov')] : null,
+			defined('PHPDBG_VERSION') ? [self::EnginePhpdbg, PHPDBG_VERSION] : null,
+			extension_loaded('xdebug') ? [self::EngineXdebug, phpversion('xdebug')] : null,
+		]);
+	}
+
+
+	public static function isStarted(): bool
 	{
 		return self::$file !== null;
 	}
@@ -31,32 +44,27 @@ class Collector
 
 	/**
 	 * Starts gathering the information for code coverage.
-	 * @param  string
-	 * @return void
 	 * @throws \LogicException
 	 */
-	public static function start($file)
+	public static function start(string $file, string $engine): void
 	{
 		if (self::isStarted()) {
 			throw new \LogicException('Code coverage collector has been already started.');
+
+		} elseif (!in_array(
+			$engine,
+			array_map(fn(array $engineInfo) => $engineInfo[0], self::detectEngines()),
+			true,
+		)) {
+			throw new \LogicException("Code coverage engine '$engine' is not supported.");
 		}
+
 		self::$file = fopen($file, 'c+');
+		self::$engine = $engine;
+		self::{'start' . $engine}();
 
-		if (defined('PHPDBG_VERSION') && PHP_VERSION_ID >= 70000) {
-			phpdbg_start_oplog();
-			self::$collector = 'collectPhpDbg';
-
-		} elseif (extension_loaded('xdebug')) {
-			xdebug_start_code_coverage(XDEBUG_CC_UNUSED | XDEBUG_CC_DEAD_CODE);
-			self::$collector = 'collectXdebug';
-
-		} else {
-			$alternative = PHP_VERSION_ID >= 70000 ? ' or phpdbg SAPI' : '';
-			throw new \LogicException("Code coverage functionality requires Xdebug extension$alternative.");
-		}
-
-		register_shutdown_function(function () {
-			register_shutdown_function([__CLASS__, 'save']);
+		register_shutdown_function(function (): void {
+			register_shutdown_function([self::class, 'save']);
 		});
 	}
 
@@ -64,9 +72,9 @@ class Collector
 	/**
 	 * Flushes all gathered information. Effective only with PHPDBG collector.
 	 */
-	public static function flush()
+	public static function flush(): void
 	{
-		if (self::isStarted() && self::$collector === 'collectPhpDbg') {
+		if (self::isStarted() && self::$engine === self::EnginePhpdbg) {
 			self::save();
 		}
 	}
@@ -74,16 +82,15 @@ class Collector
 
 	/**
 	 * Saves information about code coverage. Can be called repeatedly to free memory.
-	 * @return void
 	 * @throws \LogicException
 	 */
-	public static function save()
+	public static function save(): void
 	{
 		if (!self::isStarted()) {
 			throw new \LogicException('Code coverage collector has not been started.');
 		}
 
-		list($positive, $negative) = call_user_func([__CLASS__, self::$collector]);
+		[$positive, $negative] = self::{'collect' . self::$engine}();
 
 		flock(self::$file, LOCK_EX);
 		fseek(self::$file, 0);
@@ -98,11 +105,49 @@ class Collector
 	}
 
 
+	private static function startPCOV(): void
+	{
+		pcov\start();
+	}
+
+
 	/**
 	 * Collects information about code coverage.
-	 * @return array
 	 */
-	private static function collectXdebug()
+	private static function collectPCOV(): array
+	{
+		$positive = $negative = [];
+
+		pcov\stop();
+
+		foreach (pcov\collect() as $file => $lines) {
+			if (!file_exists($file)) {
+				continue;
+			}
+
+			foreach ($lines as $num => $val) {
+				if ($val > 0) {
+					$positive[$file][$num] = $val;
+				} else {
+					$negative[$file][$num] = $val;
+				}
+			}
+		}
+
+		return [$positive, $negative];
+	}
+
+
+	private static function startXdebug(): void
+	{
+		xdebug_start_code_coverage(XDEBUG_CC_UNUSED | XDEBUG_CC_DEAD_CODE);
+	}
+
+
+	/**
+	 * Collects information about code coverage.
+	 */
+	private static function collectXdebug(): array
 	{
 		$positive = $negative = [];
 
@@ -124,11 +169,16 @@ class Collector
 	}
 
 
+	private static function startPhpDbg(): void
+	{
+		phpdbg_start_oplog();
+	}
+
+
 	/**
 	 * Collects information about code coverage.
-	 * @return array
 	 */
-	private static function collectPhpDbg()
+	private static function collectPhpDbg(): array
 	{
 		$positive = phpdbg_end_oplog();
 		$negative = phpdbg_get_executable();

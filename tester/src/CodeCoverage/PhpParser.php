@@ -5,6 +5,8 @@
  * Copyright (c) 2009 David Grudl (https://davidgrudl.com)
  */
 
+declare(strict_types=1);
+
 namespace Tester\CodeCoverage;
 
 
@@ -19,9 +21,6 @@ namespace Tester\CodeCoverage;
 class PhpParser
 {
 	/**
-	 * @param  string  PHP code to analyze
-	 * @return \stdClass
-	 *
 	 * Returned structure is:
 	 *     stdClass {
 	 *         linesOfCode: int,
@@ -52,9 +51,9 @@ class PhpParser
 	 *         visibility: public|protected|private
 	 *     }
 	 */
-	public function parse($code)
+	public function parse(string $code): \stdClass
 	{
-		$tokens = @token_get_all($code); // @ - source code can be written in newer PHP
+		$tokens = \PhpToken::tokenize($code, TOKEN_PARSE);
 
 		$level = $classLevel = $functionLevel = null;
 		$namespace = '';
@@ -71,22 +70,21 @@ class PhpParser
 
 		while ($token = current($tokens)) {
 			next($tokens);
-			if (is_array($token)) {
-				$line = $token[2];
-			}
+			$line = $token->line;
 
-			switch (is_array($token) ? $token[0] : $token) {
+			switch ($token->id) {
 				case T_NAMESPACE:
-					$namespace = ltrim(self::fetch($tokens, [T_STRING, T_NS_SEPARATOR]) . '\\', '\\');
+					$namespace = self::fetch($tokens, [T_STRING, T_NAME_QUALIFIED]);
+					$namespace = ltrim($namespace . '\\', '\\');
 					break;
 
 				case T_CLASS:
 				case T_INTERFACE:
 				case T_TRAIT:
 					if ($name = self::fetch($tokens, T_STRING)) {
-						if ($token[0] === T_CLASS) {
+						if ($token->id === T_CLASS) {
 							$class = &$result->classes[$namespace . $name];
-						} elseif ($token[0] === T_INTERFACE) {
+						} elseif ($token->id === T_INTERFACE) {
 							$class = &$result->interfaces[$namespace . $name];
 						} else {
 							$class = &$result->traits[$namespace . $name];
@@ -99,12 +97,13 @@ class PhpParser
 							'methods' => [],
 						];
 					}
+
 					break;
 
 				case T_PUBLIC:
 				case T_PROTECTED:
 				case T_PRIVATE:
-					$visibility = $token[1];
+					$visibility = $token->text;
 					break;
 
 				case T_ABSTRACT:
@@ -118,7 +117,7 @@ class PhpParser
 							$function = (object) [
 								'start' => $line,
 								'end' => null,
-								'visibility' => isset($visibility) ? $visibility : 'public',
+								'visibility' => $visibility ?? 'public',
 							];
 
 						} else {
@@ -128,18 +127,20 @@ class PhpParser
 								'end' => null,
 							];
 						}
+
 						$functionLevel = $level + 1;
 					}
+
 					unset($visibility, $isAbstract);
 					break;
 
 				case T_CURLY_OPEN:
 				case T_DOLLAR_OPEN_CURLY_BRACES:
-				case '{':
+				case ord('{'):
 					$level++;
 					break;
 
-				case '}':
+				case ord('}'):
 					if (isset($function) && $level === $functionLevel) {
 						$function->end = $line;
 						unset($function);
@@ -148,17 +149,18 @@ class PhpParser
 						$class->end = $line;
 						unset($class);
 					}
+
 					$level--;
 					break;
 
 				case T_COMMENT:
 				case T_DOC_COMMENT:
-					$result->linesOfComments += substr_count(trim($token[1]), "\n") + 1;
+					$result->linesOfComments += substr_count(trim($token->text), "\n") + 1;
 					// break omitted
 
 				case T_WHITESPACE:
 				case T_CONSTANT_ENCAPSED_STRING:
-					$line += substr_count($token[1], "\n");
+					$line += substr_count($token->text, "\n");
 					break;
 			}
 		}
@@ -167,18 +169,19 @@ class PhpParser
 	}
 
 
-	private static function fetch(&$tokens, $take)
+	private static function fetch(array &$tokens, array|int $take): ?string
 	{
 		$res = null;
 		while ($token = current($tokens)) {
-			list($token, $s) = is_array($token) ? $token : [$token, $token];
-			if (in_array($token, (array) $take, true)) {
-				$res .= $s;
-			} elseif (!in_array($token, [T_DOC_COMMENT, T_WHITESPACE, T_COMMENT], true)) {
+			if ($token->is($take)) {
+				$res .= $token->text;
+			} elseif (!$token->is([T_DOC_COMMENT, T_WHITESPACE, T_COMMENT])) {
 				break;
 			}
+
 			next($tokens);
 		}
+
 		return $res;
 	}
 }

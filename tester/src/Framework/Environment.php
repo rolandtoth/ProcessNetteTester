@@ -5,6 +5,8 @@
  * Copyright (c) 2009 David Grudl (https://davidgrudl.com)
  */
 
+declare(strict_types=1);
+
 namespace Tester;
 
 
@@ -13,106 +15,127 @@ namespace Tester;
  */
 class Environment
 {
-	/** Should Tester use console colors? */
-	const COLORS = 'NETTE_TESTER_COLORS';
+	/** Should Test use console colors? */
+	public const VariableColors = 'NETTE_TESTER_COLORS';
 
 	/** Test is run by Runner */
-	const RUNNER = 'NETTE_TESTER_RUNNER';
+	public const VariableRunner = 'NETTE_TESTER_RUNNER';
+
+	/** Code coverage engine */
+	public const VariableCoverageEngine = 'NETTE_TESTER_COVERAGE_ENGINE';
 
 	/** Code coverage file */
-	const COVERAGE = 'NETTE_TESTER_COVERAGE';
+	public const VariableCoverage = 'NETTE_TESTER_COVERAGE';
 
 	/** Thread number when run tests in multi threads */
-	const THREAD = 'NETTE_TESTER_THREAD';
+	public const VariableThread = 'NETTE_TESTER_THREAD';
 
-	/** @var bool  used for debugging Tester itself */
-	public static $debugMode = true;
+	/** @deprecated use Environment::VariableColors */
+	public const COLORS = self::VariableColors;
 
-	/** @var bool */
-	public static $checkAssertions = false;
+	/** @deprecated use Environment::VariableRunner */
+	public const RUNNER = self::VariableRunner;
 
-	/** @var bool */
-	public static $useColors;
+	/** @deprecated use Environment::VariableCoverageEngine */
+	public const COVERAGE_ENGINE = self::VariableCoverageEngine;
 
-	/** @var int initial output buffer level */
-	private static $obLevel;
+	/** @deprecated use Environment::VariableCoverage */
+	public const COVERAGE = self::VariableCoverage;
+
+	/** @deprecated use Environment::VariableThread */
+	public const THREAD = self::VariableThread;
+
+	public static bool $checkAssertions = false;
+	public static bool $useColors = false;
+	private static int $exitCode = 0;
 
 
 	/**
 	 * Configures testing environment.
-	 * @return void
 	 */
-	public static function setup()
+	public static function setup(): void
 	{
 		self::setupErrors();
 		self::setupColors();
-		self::$obLevel = ob_get_level();
 
-		class_exists('Tester\Runner\Job');
-		class_exists('Tester\Dumper');
-		class_exists('Tester\Assert');
+		class_exists(Runner\Job::class);
+		class_exists(Dumper::class);
+		class_exists(Assert::class);
 
 		$annotations = self::getTestAnnotations();
 		self::$checkAssertions = !isset($annotations['outputmatch']) && !isset($annotations['outputmatchfile']);
 
-		if (getenv(self::COVERAGE)) {
-			CodeCoverage\Collector::start(getenv(self::COVERAGE));
+		if (getenv(self::VariableCoverage) && getenv(self::VariableCoverageEngine)) {
+			CodeCoverage\Collector::start(getenv(self::VariableCoverage), getenv(self::VariableCoverageEngine));
+		}
+
+		if (getenv('TERMINAL_EMULATOR') === 'JetBrains-JediTerm') {
+			Dumper::$maxPathSegments = -1;
+			Dumper::$pathSeparator = '/';
 		}
 	}
 
 
 	/**
 	 * Configures colored output.
-	 * @return void
 	 */
-	public static function setupColors()
+	public static function setupColors(): void
 	{
-		self::$useColors = getenv(self::COLORS) !== false
-			? (bool) getenv(self::COLORS)
-			: ((PHP_SAPI === 'cli' || PHP_SAPI === 'phpdbg')
-				&& ((function_exists('posix_isatty') && posix_isatty(STDOUT))
-					|| getenv('ConEmuANSI') === 'ON' || getenv('ANSICON') !== false) || getenv('TERM') === 'xterm-256color');
+		self::$useColors = getenv(self::VariableColors) !== false
+			? (bool) getenv(self::VariableColors)
+			: (PHP_SAPI === 'cli' || PHP_SAPI === 'phpdbg')
+				&& getenv('NO_COLOR') === false // https://no-color.org
+				&& (getenv('FORCE_COLOR')
+					|| (function_exists('sapi_windows_vt100_support')
+						? sapi_windows_vt100_support(STDOUT)
+						: @stream_isatty(STDOUT)) // @ may trigger error 'cannot cast a filtered stream on this system'
+				);
 
-		ob_start(function ($s) {
-			return self::$useColors ? $s : Dumper::removeColors($s);
-		}, 1, PHP_OUTPUT_HANDLER_FLUSHABLE);
+		ob_start(
+			fn(string $s): string => self::$useColors ? $s : Dumper::removeColors($s),
+			1,
+			PHP_OUTPUT_HANDLER_FLUSHABLE,
+		);
 	}
 
 
 	/**
 	 * Configures PHP error handling.
-	 * @return void
 	 */
-	public static function setupErrors()
+	public static function setupErrors(): void
 	{
 		error_reporting(E_ALL);
 		ini_set('display_errors', '1');
 		ini_set('html_errors', '0');
 		ini_set('log_errors', '0');
 
-		set_exception_handler([__CLASS__, 'handleException']);
+		set_exception_handler([self::class, 'handleException']);
 
-		set_error_handler(function ($severity, $message, $file, $line) {
-			if (in_array($severity, [E_RECOVERABLE_ERROR, E_USER_ERROR], true) || ($severity & error_reporting()) === $severity) {
+		set_error_handler(function (int $severity, string $message, string $file, int $line): ?bool {
+			if (
+				in_array($severity, [E_RECOVERABLE_ERROR, E_USER_ERROR], true)
+				|| ($severity & error_reporting()) === $severity
+			) {
 				self::handleException(new \ErrorException($message, 0, $severity, $file, $line));
 			}
+
 			return false;
 		});
 
-		register_shutdown_function(function () {
-			Assert::$onFailure = [__CLASS__, 'handleException'];
+		register_shutdown_function(function (): void {
+			Assert::$onFailure = [self::class, 'handleException'];
 
 			$error = error_get_last();
-			register_shutdown_function(function () use ($error) {
-				if (in_array($error['type'], [E_ERROR, E_CORE_ERROR, E_COMPILE_ERROR, E_PARSE], true)) {
+			register_shutdown_function(function () use ($error): void {
+				if (in_array($error['type'] ?? null, [E_ERROR, E_CORE_ERROR, E_COMPILE_ERROR, E_PARSE], true)) {
 					if (($error['type'] & error_reporting()) !== $error['type']) { // show fatal errors hidden by @shutup
-						self::removeOutputBuffers();
-						echo "\nFatal error: $error[message] in $error[file] on line $error[line]\n";
+						self::print("\n" . Dumper::color('white/red', "Fatal error: $error[message] in $error[file] on line $error[line]"));
 					}
 				} elseif (self::$checkAssertions && !Assert::$counter) {
-					self::removeOutputBuffers();
-					echo "\nError: This test forgets to execute an assertion.\n";
-					exit(Runner\Job::CODE_FAIL);
+					self::print("\n" . Dumper::color('white/red', 'Error: This test forgets to execute an assertion.'));
+					self::exit(Runner\Job::CodeFail);
+				} elseif (!getenv(self::VariableRunner) && self::$exitCode !== Runner\Job::CodeSkip) {
+					self::print("\n" . (self::$exitCode ? Dumper::color('white/red', 'FAILURE') : Dumper::color('white/green', 'OK')));
 				}
 			});
 		});
@@ -120,37 +143,41 @@ class Environment
 
 
 	/**
-	 * @param  \Exception|\Throwable
+	 * Creates global functions test(), testException(), setUp() and tearDown().
+	 */
+	public static function setupFunctions(): void
+	{
+		require __DIR__ . '/functions.php';
+	}
+
+
+	/**
 	 * @internal
 	 */
-	public static function handleException($e)
+	public static function handleException(\Throwable $e): void
 	{
-		self::removeOutputBuffers();
 		self::$checkAssertions = false;
-		echo self::$debugMode ? Dumper::dumpException($e) : "\nError: {$e->getMessage()}\n";
-		exit($e instanceof AssertException ? Runner\Job::CODE_FAIL : Runner\Job::CODE_ERROR);
+		self::print(Dumper::dumpException($e));
+		self::exit($e instanceof AssertException ? Runner\Job::CodeFail : Runner\Job::CodeError);
 	}
 
 
 	/**
 	 * Skips this test.
-	 * @return void
 	 */
-	public static function skip($message = '')
+	public static function skip(string $message = ''): void
 	{
 		self::$checkAssertions = false;
-		echo "\nSkipped:\n$message\n";
-		die(Runner\Job::CODE_SKIP);
+		self::print("\nSkipped:\n$message");
+		self::exit(Runner\Job::CodeSkip);
 	}
 
 
 	/**
 	 * Locks the parallel tests.
-	 * @param  string
-	 * @param  string  lock store directory
-	 * @return void
+	 * @param  string  $path  lock store directory
 	 */
-	public static function lock($name = '', $path = '')
+	public static function lock(string $name = '', string $path = ''): void
 	{
 		static $locks;
 		$file = "$path/lock-" . md5($name);
@@ -162,32 +189,30 @@ class Environment
 
 	/**
 	 * Returns current test annotations.
-	 * @return array
 	 */
-	public static function getTestAnnotations()
+	public static function getTestAnnotations(): array
 	{
 		$trace = debug_backtrace();
-		$file = $trace[count($trace) - 1]['file'];
-		return Helpers::parseDocComment(file_get_contents($file)) + ['file' => $file];
+		return ($file = $trace[count($trace) - 1]['file'] ?? null)
+			? Helpers::parseDocComment(file_get_contents($file)) + ['file' => $file]
+			: [];
 	}
 
 
 	/**
 	 * Removes keyword final from source codes.
-	 * @return void
 	 */
-	public static function bypassFinals()
+	public static function bypassFinals(): void
 	{
-		FileMutator::addMutator(function ($code) {
-			if (strpos($code, 'final') !== false) {
-				$tokens = token_get_all($code);
+		FileMutator::addMutator(function (string $code): string {
+			if (str_contains($code, 'final')) {
+				$tokens = \PhpToken::tokenize($code, TOKEN_PARSE);
 				$code = '';
 				foreach ($tokens as $token) {
-					$code .= is_array($token)
-						? ($token[0] === T_FINAL ? '' : $token[1])
-						: $token;
+					$code .= $token->is(T_FINAL) ? '' : $token->text;
 				}
 			}
+
 			return $code;
 		});
 	}
@@ -195,28 +220,51 @@ class Environment
 
 	/**
 	 * Loads data according to the file annotation or specified by Tester\Runner\TestHandler::initiateDataProvider()
-	 * @return array
 	 */
-	public static function loadData()
+	public static function loadData(): array
 	{
 		if (isset($_SERVER['argv']) && ($tmp = preg_filter('#--dataprovider=(.*)#Ai', '$1', $_SERVER['argv']))) {
-			list($query, $file) = explode('|', reset($tmp), 2);
-
-		} else {
-			$annotations = self::getTestAnnotations();
-			if (!isset($annotations['dataprovider'])) {
-				throw new \Exception('Missing annotation @dataProvider.');
+			[$key, $file] = explode('|', reset($tmp), 2);
+			$data = DataProvider::load($file);
+			if (!array_key_exists($key, $data)) {
+				throw new \Exception("Missing dataset '$key' from data provider '$file'.");
 			}
-			$provider = (array) $annotations['dataprovider'];
-			list($file, $query) = DataProvider::parseAnnotation($provider[0], $annotations['file']);
+
+			return $data[$key];
 		}
+
+		$annotations = self::getTestAnnotations();
+		if (!isset($annotations['dataprovider'])) {
+			throw new \Exception('Missing annotation @dataProvider.');
+		}
+
+		$provider = (array) $annotations['dataprovider'];
+		[$file, $query] = DataProvider::parseAnnotation($provider[0], $annotations['file']);
+
 		$data = DataProvider::load($file, $query);
+		if (!$data) {
+			throw new \Exception("No datasets from data provider '$file'" . ($query ? " for query '$query'" : '') . '.');
+		}
+
 		return reset($data);
 	}
 
 
-	private static function removeOutputBuffers()
+	public static function exit(int $code = 0): void
 	{
-		while (ob_get_level() > self::$obLevel && @ob_end_flush()); // @ may be not removable
+		self::$exitCode = $code;
+		exit($code);
+	}
+
+
+	/** @internal */
+	public static function print(string $s): void
+	{
+		$s = $s === '' || str_ends_with($s, "\n") ? $s : $s . "\n";
+		if (PHP_SAPI === 'cli' || PHP_SAPI === 'phpdbg') {
+			fwrite(STDOUT, self::$useColors ? $s : Dumper::removeColors($s));
+		} else {
+			echo $s;
+		}
 	}
 }

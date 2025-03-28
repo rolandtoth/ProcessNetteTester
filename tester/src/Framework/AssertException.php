@@ -5,6 +5,8 @@
  * Copyright (c) 2009 David Grudl (https://davidgrudl.com)
  */
 
+declare(strict_types=1);
+
 namespace Tester;
 
 
@@ -13,14 +15,13 @@ namespace Tester;
  */
 class AssertException extends \Exception
 {
-	public $origMessage;
+	public string $origMessage;
+	public mixed $actual;
+	public mixed $expected;
+	public ?string $outputName;
 
-	public $actual;
 
-	public $expected;
-
-
-	public function __construct($message, $expected, $actual, $previous = null)
+	public function __construct(string $message, mixed $expected, mixed $actual, ?\Throwable $previous = null)
 	{
 		parent::__construct('', 0, $previous);
 		$this->expected = $expected;
@@ -29,7 +30,7 @@ class AssertException extends \Exception
 	}
 
 
-	public function setMessage($message)
+	public function setMessage(string $message): self
 	{
 		$this->origMessage = $message;
 		$this->message = strtr($message, [
