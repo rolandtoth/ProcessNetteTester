@@ -5,6 +5,8 @@
  * Copyright (c) 2009 David Grudl (https://davidgrudl.com)
  */
 
+declare(strict_types=1);
+
 namespace Tester\Runner;
 
 use Tester\Environment;
@@ -16,40 +18,25 @@ use Tester\Environment;
 class Runner
 {
 	/** @var string[]  paths to test files/directories */
-	public $paths = [];
+	public array $paths = [];
 
-	/** @var int  run in parallel threads */
-	public $threadCount = 1;
-
-	/** @var TestHandler */
-	public $testHandler;
+	/** @var string[] */
+	public array $ignoreDirs = ['vendor'];
+	public int $threadCount = 1;
+	public TestHandler $testHandler;
 
 	/** @var OutputHandler[] */
-	public $outputHandlers = [];
-
-	/** @var bool */
-	public $stopOnFail = false;
-
-	/** @var PhpInterpreter */
-	private $interpreter;
-
-	/** @var array */
-	private $envVars = [];
+	public array $outputHandlers = [];
+	public bool $stopOnFail = false;
+	private PhpInterpreter $interpreter;
+	private array $envVars = [];
 
 	/** @var Job[] */
-	private $jobs;
-
-	/** @var bool */
-	private $interrupted;
-
-	/** @var string|null */
-	private $tempDir;
-
-	/** @var bool */
-	private $result;
-
-	/** @var array */
-	private $lastResults = [];
+	private array $jobs;
+	private bool $interrupted = false;
+	private ?string $tempDir = null;
+	private bool $result;
+	private array $lastResults = [];
 
 
 	public function __construct(PhpInterpreter $interpreter)
@@ -59,51 +46,35 @@ class Runner
 	}
 
 
-	/**
-	 * @param  string
-	 * @param  string
-	 * @return void
-	 */
-	public function setEnvironmentVariable($name, $value)
+	public function setEnvironmentVariable(string $name, string $value): void
 	{
 		$this->envVars[$name] = $value;
 	}
 
 
-	/**
-	 * @return array
-	 */
-	public function getEnvironmentVariables()
+	public function getEnvironmentVariables(): array
 	{
 		return $this->envVars;
 	}
 
 
-	/**
-	 * @param  string|null
-	 */
-	public function setTempDirectory($path)
+	public function addPhpIniOption(string $name, ?string $value = null): void
 	{
-		if ($path !== null) {
-			if (!is_dir($path) || !is_writable($path)) {
-				throw new \RuntimeException("Path '$path' is not a writable directory.");
-			}
+		$this->interpreter = $this->interpreter->withPhpIniOption($name, $value);
+	}
 
-			$path = realpath($path) . DIRECTORY_SEPARATOR . 'Tester';
-			if (!is_dir($path) && @mkdir($path) === false && !is_dir($path)) {  // @ - directory may exist
-				throw new \RuntimeException("Cannot create '$path' directory.");
-			}
-		}
 
+	public function setTempDirectory(?string $path): void
+	{
 		$this->tempDir = $path;
+		$this->testHandler->setTempDirectory($path);
 	}
 
 
 	/**
 	 * Runs all tests.
-	 * @return bool
 	 */
-	public function run()
+	public function run(): bool
 	{
 		$this->result = true;
 		$this->interrupted = false;
@@ -118,52 +89,51 @@ class Runner
 		}
 
 		if ($this->tempDir) {
-			usort($this->jobs, function (Job $a, Job $b) {
-				return $this->getLastResult($a->getTest()) - $this->getLastResult($b->getTest());
-			});
+			usort(
+				$this->jobs,
+				fn(Job $a, Job $b): int => $this->getLastResult($a->getTest()) - $this->getLastResult($b->getTest()),
+			);
 		}
 
 		$threads = range(1, $this->threadCount);
 
-		$this->installInterruptHandler();
-		while (($this->jobs || $running) && !$this->isInterrupted()) {
-			while ($threads && $this->jobs) {
-				$running[] = $job = array_shift($this->jobs);
-				$async = $this->threadCount > 1 && (count($running) + count($this->jobs) > 1);
-				$job->setEnvironmentVariable(Environment::THREAD, array_shift($threads));
-				$job->run($async ? $job::RUN_ASYNC : 0);
-			}
+		$async = $this->threadCount > 1 && count($this->jobs) > 1;
 
-			if (count($running) > 1) {
-				usleep(Job::RUN_USLEEP); // stream_select() doesn't work with proc_open()
-			}
-
-			foreach ($running as $key => $job) {
-				if ($this->isInterrupted()) {
-					break 2;
+		try {
+			while (($this->jobs || $running) && !$this->interrupted) {
+				while ($threads && $this->jobs) {
+					$running[] = $job = array_shift($this->jobs);
+					$job->setEnvironmentVariable(Environment::VariableThread, (string) array_shift($threads));
+					$job->run(async: $async);
 				}
 
-				if (!$job->isRunning()) {
-					$threads[] = $job->getEnvironmentVariable(Environment::THREAD);
-					$this->testHandler->assess($job);
-					unset($running[$key]);
+				if ($async) {
+					usleep(Job::RunSleep); // stream_select() doesn't work with proc_open()
+				}
+
+				foreach ($running as $key => $job) {
+					if ($this->interrupted) {
+						break 2;
+					}
+
+					if (!$job->isRunning()) {
+						$threads[] = $job->getEnvironmentVariable(Environment::VariableThread);
+						$this->testHandler->assess($job);
+						unset($running[$key]);
+					}
 				}
 			}
-		}
-		$this->removeInterruptHandler();
-
-		foreach ($this->outputHandlers as $handler) {
-			$handler->end();
+		} finally {
+			foreach ($this->outputHandlers as $handler) {
+				$handler->end();
+			}
 		}
 
 		return $this->result;
 	}
 
 
-	/**
-	 * @return void
-	 */
-	private function findTests($path)
+	private function findTests(string $path): void
 	{
 		if (strpbrk($path, '*?') === false && !file_exists($path)) {
 			throw new \InvalidArgumentException("File or directory '$path' not found.");
@@ -171,6 +141,10 @@ class Runner
 
 		if (is_dir($path)) {
 			foreach (glob(str_replace('[', '[[]', $path) . '/*', GLOB_ONLYDIR) ?: [] as $dir) {
+				if (in_array(basename($dir), $this->ignoreDirs, true)) {
+					continue;
+				}
+
 				$this->findTests($dir);
 			}
 
@@ -189,18 +163,14 @@ class Runner
 
 	/**
 	 * Appends new job to queue.
-	 * @return void
 	 */
-	public function addJob(Job $job)
+	public function addJob(Job $job): void
 	{
 		$this->jobs[] = $job;
 	}
 
 
-	/**
-	 * @return void
-	 */
-	public function prepareTest(Test $test)
+	public function prepareTest(Test $test): void
 	{
 		foreach ($this->outputHandlers as $handler) {
 			$handler->prepare($test);
@@ -210,11 +180,10 @@ class Runner
 
 	/**
 	 * Writes to output handlers.
-	 * @return void
 	 */
-	public function finishTest(Test $test)
+	public function finishTest(Test $test): void
 	{
-		$this->result = $this->result && ($test->getResult() !== Test::FAILED);
+		$this->result = $this->result && ($test->getResult() !== Test::Failed);
 
 		foreach ($this->outputHandlers as $handler) {
 			$handler->finish($test);
@@ -227,63 +196,19 @@ class Runner
 			}
 		}
 
-		if ($this->stopOnFail && $test->getResult() === Test::FAILED) {
+		if ($this->stopOnFail && $test->getResult() === Test::Failed) {
 			$this->interrupted = true;
 		}
 	}
 
 
-	/**
-	 * @return PhpInterpreter
-	 */
-	public function getInterpreter()
+	public function getInterpreter(): PhpInterpreter
 	{
 		return $this->interpreter;
 	}
 
 
-	/**
-	 * @return void
-	 */
-	private function installInterruptHandler()
-	{
-		if (extension_loaded('pcntl')) {
-			pcntl_signal(SIGINT, function () {
-				pcntl_signal(SIGINT, SIG_DFL);
-				$this->interrupted = true;
-			});
-		}
-	}
-
-
-	/**
-	 * @return void
-	 */
-	private function removeInterruptHandler()
-	{
-		if (extension_loaded('pcntl')) {
-			pcntl_signal(SIGINT, SIG_DFL);
-		}
-	}
-
-
-	/**
-	 * @return bool
-	 */
-	private function isInterrupted()
-	{
-		if (extension_loaded('pcntl')) {
-			pcntl_signal_dispatch();
-		}
-
-		return $this->interrupted;
-	}
-
-
-	/**
-	 * @return string
-	 */
-	private function getLastResult(Test $test)
+	private function getLastResult(Test $test): int
 	{
 		$signature = $test->getSignature();
 		if (isset($this->lastResults[$signature])) {
@@ -292,17 +217,14 @@ class Runner
 
 		$file = $this->getLastResultFilename($test);
 		if (is_file($file)) {
-			return $this->lastResults[$signature] = file_get_contents($file);
+			return $this->lastResults[$signature] = (int) file_get_contents($file);
 		}
 
-		return $this->lastResults[$signature] = Test::PREPARED;
+		return $this->lastResults[$signature] = Test::Prepared;
 	}
 
 
-	/**
-	 * @return string
-	 */
-	private function getLastResultFilename(Test $test)
+	private function getLastResultFilename(Test $test): string
 	{
 		return $this->tempDir
 			. DIRECTORY_SEPARATOR

@@ -5,101 +5,150 @@
  * Copyright (c) 2009 David Grudl (https://davidgrudl.com)
  */
 
+declare(strict_types=1);
+
 namespace Tester;
+
+use Dom;
 
 
 /**
- * DomQuery simplifies querying (X)HTML documents.
+ * Simplifies querying and traversing HTML documents using CSS selectors.
  */
 class DomQuery extends \SimpleXMLElement
 {
 	/**
-	 * @return DomQuery
+	 * Creates a DomQuery object from an HTML string.
 	 */
-	public static function fromHtml($html)
+	public static function fromHtml(string $html): self
 	{
-		if (strpos($html, '<') === false) {
-			$html = '<body>' . $html;
-		}
-
-		// parse these elements as void
-		$html = preg_replace('#<(keygen|source|track|wbr)(?=\s|>)((?:"[^"]*"|\'[^\']*\'|[^"\'>])*+)(?<!/)>#', '<$1$2 />', $html);
-
-		// fix parsing of </ inside scripts
-		$html = preg_replace_callback('#(<script(?=\s|>)(?:"[^"]*"|\'[^\']*\'|[^"\'>])*+>)(.*?)(</script>)#s', function ($m) {
-			return $m[1] . str_replace('</', '<\/', $m[2]) . $m[3];
-		}, $html);
-
-		$dom = new \DOMDocument();
 		$old = libxml_use_internal_errors(true);
 		libxml_clear_errors();
-		$dom->loadHTML($html);
+
+		if (PHP_VERSION_ID < 80400) {
+			if (!str_contains($html, '<')) {
+				$html = '<body>' . $html;
+			}
+
+			// parse these elements as void
+			$html = preg_replace('#<(keygen|source|track|wbr)(?=\s|>)((?:"[^"]*"|\'[^\']*\'|[^"\'>])*+)(?<!/)>#', '<$1$2 />', $html);
+
+			// fix parsing of </ inside scripts
+			$html = preg_replace_callback(
+				'#(<script(?=\s|>)(?:"[^"]*"|\'[^\']*\'|[^"\'>])*+>)(.*?)(</script>)#s',
+				fn(array $m): string => $m[1] . str_replace('</', '<\/', $m[2]) . $m[3],
+				$html,
+			);
+
+			$dom = new \DOMDocument;
+			$dom->loadHTML($html);
+		} else {
+			if (!preg_match('~<!DOCTYPE~i', $html)) {
+				$html = '<!DOCTYPE html>' . $html;
+			}
+			$dom = Dom\HTMLDocument::createFromString($html, Dom\HTML_NO_DEFAULT_NS);
+		}
+
 		$errors = libxml_get_errors();
 		libxml_use_internal_errors($old);
 
-		$re = '#Tag (article|aside|audio|bdi|canvas|data|datalist|figcaption|figure|footer|header|keygen|main|mark'
-			. '|meter|nav|output|picture|progress|rb|rp|rt|rtc|ruby|section|source|template|time|track|video|wbr) invalid#';
 		foreach ($errors as $error) {
-			if (!preg_match($re, $error->message)) {
+			if (!preg_match('#Tag \S+ invalid#', $error->message)) {
 				trigger_error(__METHOD__ . ": $error->message on line $error->line.", E_USER_WARNING);
 			}
 		}
-		return simplexml_import_dom($dom, __CLASS__);
+
+		return simplexml_import_dom($dom, self::class);
 	}
 
 
 	/**
-	 * @return DomQuery
+	 * Creates a DomQuery object from an XML string.
 	 */
-	public static function fromXml($xml)
+	public static function fromXml(string $xml): self
 	{
-		return simplexml_load_string($xml, __CLASS__);
+		return simplexml_load_string($xml, self::class);
 	}
 
 
 	/**
-	 * Returns array of descendants filtered by a selector.
+	 * Returns array of elements matching CSS selector.
 	 * @return DomQuery[]
 	 */
-	public function find($selector)
+	public function find(string $selector): array
 	{
-		return $this->xpath(self::css2xpath($selector));
+		if (PHP_VERSION_ID < 80400) {
+			return str_starts_with($selector, ':scope')
+				? $this->xpath('self::' . self::css2xpath(substr($selector, 6)))
+				: $this->xpath('descendant::' . self::css2xpath($selector));
+		}
+
+		return array_map(
+			fn($el) => simplexml_import_dom($el, self::class),
+			iterator_to_array(Dom\import_simplexml($this)->querySelectorAll($selector)),
+		);
 	}
 
 
 	/**
-	 * Check the current document against a selector.
-	 * @return bool
+	 * Checks if any descendant matches CSS selector.
 	 */
-	public function has($selector)
+	public function has(string $selector): bool
 	{
-		return (bool) $this->find($selector);
+		return PHP_VERSION_ID < 80400
+			? (bool) $this->find($selector)
+			: (bool) Dom\import_simplexml($this)->querySelector($selector);
 	}
 
 
 	/**
-	 * Transforms CSS expression to XPath.
-	 * @return string
+	 * Checks if element matches CSS selector.
 	 */
-	public static function css2xpath($css)
+	public function matches(string $selector): bool
 	{
-		$xpath = '//*';
-		preg_match_all('/
-			([#.:]?)([a-z][a-z0-9_-]*)|               # id, class, pseudoclass (1,2)
-			\[
-				([a-z0-9_-]+)
-				(?:
-					([~*^$]?)=(
-						"[^"]*"|
-						\'[^\']*\'|
-						[^\]]+
-					)
-				)?
-			\]|                                       # [attr=val] (3,4,5)
-			\s*([>,+~])\s*|                           # > , + ~ (6)
-			(\s+)|                                    # whitespace (7)
-			(\*)                                      # * (8)
-		/ix', trim($css), $matches, PREG_SET_ORDER);
+		return PHP_VERSION_ID < 80400
+			? (bool) $this->xpath('self::' . self::css2xpath($selector))
+			: Dom\import_simplexml($this)->matches($selector);
+	}
+
+
+	/**
+	 * Returns closest ancestor matching CSS selector.
+	 */
+	public function closest(string $selector): ?self
+	{
+		if (PHP_VERSION_ID < 80400) {
+			throw new \LogicException('Requires PHP 8.4 or newer.');
+		}
+		$el = Dom\import_simplexml($this)->closest($selector);
+		return $el ? simplexml_import_dom($el, self::class) : null;
+	}
+
+
+	/**
+	 * Converts a CSS selector into an XPath expression.
+	 */
+	public static function css2xpath(string $css): string
+	{
+		$xpath = '*';
+		preg_match_all(<<<'XX'
+			/
+				([#.:]?)([a-z][a-z0-9_-]*)|               # id, class, pseudoclass (1,2)
+				\[
+					([a-z0-9_-]+)
+					(?:
+						([~*^$]?)=(
+							"[^"]*"|
+							'[^']*'|
+							[^\]]+
+						)
+					)?
+				\]|                                       # [attr=val] (3,4,5)
+				\s*([>,+~])\s*|                           # > , + ~ (6)
+				(\s+)|                                    # whitespace (7)
+				(\*)                                      # * (8)
+			/ix
+			XX, trim($css), $matches, PREG_SET_ORDER);
 		foreach ($matches as $m) {
 			if ($m[1] === '#') { // #ID
 				$xpath .= "[@id='$m[2]']";
@@ -115,6 +164,7 @@ class DomQuery extends \SimpleXMLElement
 					$xpath .= "[$attr]";
 					continue;
 				}
+
 				$val = trim($m[5], '"\'');
 				if ($m[4] === '') {
 					$xpath .= "[$attr='$val']";
@@ -139,6 +189,7 @@ class DomQuery extends \SimpleXMLElement
 				$xpath .= '//*';
 			}
 		}
+
 		return $xpath;
 	}
 }

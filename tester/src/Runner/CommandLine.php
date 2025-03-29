@@ -5,6 +5,8 @@
  * Copyright (c) 2009 David Grudl (https://davidgrudl.com)
  */
 
+declare(strict_types=1);
+
 namespace Tester\Runner;
 
 
@@ -13,28 +15,27 @@ namespace Tester\Runner;
  */
 class CommandLine
 {
-	const
-		ARGUMENT = 'argument',
-		OPTIONAL = 'optional',
-		REPEATABLE = 'repeatable',
-		ENUM = 'enum',
-		REALPATH = 'realpath',
-		VALUE = 'default';
+	public const
+		Argument = 'argument',
+		Optional = 'optional',
+		Repeatable = 'repeatable',
+		Enum = 'enum',
+		RealPath = 'realpath',
+		Normalizer = 'normalizer',
+		Value = 'default';
 
 	/** @var array[] */
-	private $options = [];
+	private array $options = [];
 
 	/** @var string[] */
-	private $aliases = [];
+	private array $aliases = [];
 
-	/** @var bool[] */
-	private $positional = [];
-
-	/** @var string */
-	private $help;
+	/** @var string[] */
+	private array $positional = [];
+	private string $help;
 
 
-	public function __construct($help, array $defaults = [])
+	public function __construct(string $help, array $defaults = [])
 	{
 		$this->help = $help;
 		$this->options = $defaults;
@@ -47,13 +48,13 @@ class CommandLine
 			}
 
 			$name = end($m[1]);
-			$opts = isset($this->options[$name]) ? $this->options[$name] : [];
+			$opts = $this->options[$name] ?? [];
 			$this->options[$name] = $opts + [
-				self::ARGUMENT => (bool) end($m[2]),
-				self::OPTIONAL => isset($line[2]) || (substr(end($m[2]), 0, 1) === '[') || isset($opts[self::VALUE]),
-				self::REPEATABLE => (bool) end($m[3]),
-				self::ENUM => count($enums = explode('|', trim(end($m[2]), '<[]>'))) > 1 ? $enums : null,
-				self::VALUE => isset($line[2]) ? $line[2] : null,
+				self::Argument => (bool) end($m[2]),
+				self::Optional => isset($line[2]) || (substr(end($m[2]), 0, 1) === '[') || isset($opts[self::Value]),
+				self::Repeatable => (bool) end($m[3]),
+				self::Enum => count($enums = explode('|', trim(end($m[2]), '<[]>'))) > 1 ? $enums : null,
+				self::Value => $line[2] ?? null,
 			];
 			if ($name !== $m[1][0]) {
 				$this->aliases[$m[1][0]] = $name;
@@ -68,11 +69,12 @@ class CommandLine
 	}
 
 
-	public function parse(array $args = null)
+	public function parse(?array $args = null): array
 	{
 		if ($args === null) {
 			$args = isset($_SERVER['argv']) ? array_slice($_SERVER['argv'], 1) : [];
 		}
+
 		$params = [];
 		reset($this->positional);
 		$i = 0;
@@ -82,18 +84,20 @@ class CommandLine
 				if (!current($this->positional)) {
 					throw new \Exception("Unexpected parameter $arg.");
 				}
+
 				$name = current($this->positional);
 				$this->checkArg($this->options[$name], $arg);
-				if (empty($this->options[$name][self::REPEATABLE])) {
+				if (empty($this->options[$name][self::Repeatable])) {
 					$params[$name] = $arg;
 					next($this->positional);
 				} else {
 					$params[$name][] = $arg;
 				}
+
 				continue;
 			}
 
-			list($name, $arg) = strpos($arg, '=') ? explode('=', $arg, 2) : [$arg, true];
+			[$name, $arg] = strpos($arg, '=') ? explode('=', $arg, 2) : [$arg, true];
 
 			if (isset($this->aliases[$name])) {
 				$name = $this->aliases[$name];
@@ -104,23 +108,31 @@ class CommandLine
 
 			$opt = $this->options[$name];
 
-			if ($arg !== true && empty($opt[self::ARGUMENT])) {
+			if ($arg !== true && empty($opt[self::Argument])) {
 				throw new \Exception("Option $name has not argument.");
 
-			} elseif ($arg === true && !empty($opt[self::ARGUMENT])) {
+			} elseif ($arg === true && !empty($opt[self::Argument])) {
 				if (isset($args[$i]) && $args[$i][0] !== '-') {
 					$arg = $args[$i++];
-				} elseif (empty($opt[self::OPTIONAL])) {
+				} elseif (empty($opt[self::Optional])) {
 					throw new \Exception("Option $name requires argument.");
 				}
 			}
 
-			if (!empty($opt[self::ENUM]) && !in_array($arg, $opt[self::ENUM], true) && !($opt[self::OPTIONAL] && $arg === true)) {
-				throw new \Exception("Value of option $name must be " . implode(', or ', $opt[self::ENUM]) . '.');
-			}
 			$this->checkArg($opt, $arg);
 
-			if (empty($opt[self::REPEATABLE])) {
+			if (
+				!empty($opt[self::Enum])
+				&& !in_array(is_array($arg) ? reset($arg) : $arg, $opt[self::Enum], true)
+				&& !(
+					$opt[self::Optional]
+					&& $arg === true
+				)
+			) {
+				throw new \Exception("Value of option $name must be " . implode(', or ', $opt[self::Enum]) . '.');
+			}
+
+			if (empty($opt[self::Repeatable])) {
 				$params[$name] = $arg;
 			} else {
 				$params[$name][] = $arg;
@@ -130,40 +142,47 @@ class CommandLine
 		foreach ($this->options as $name => $opt) {
 			if (isset($params[$name])) {
 				continue;
-			} elseif (isset($opt[self::VALUE])) {
-				$params[$name] = $opt[self::VALUE];
-			} elseif ($name[0] !== '-' && empty($opt[self::OPTIONAL])) {
+			} elseif (isset($opt[self::Value])) {
+				$params[$name] = $opt[self::Value];
+			} elseif ($name[0] !== '-' && empty($opt[self::Optional])) {
 				throw new \Exception("Missing required argument <$name>.");
 			} else {
 				$params[$name] = null;
 			}
-			if (!empty($opt[self::REPEATABLE])) {
+
+			if (!empty($opt[self::Repeatable])) {
 				$params[$name] = (array) $params[$name];
 			}
 		}
+
 		return $params;
 	}
 
 
-	public function help()
+	public function help(): void
 	{
 		echo $this->help;
 	}
 
 
-	public function checkArg(array $opt, &$arg)
+	public function checkArg(array $opt, mixed &$arg): void
 	{
-		if (!empty($opt[self::REALPATH])) {
+		if (!empty($opt[self::Normalizer])) {
+			$arg = call_user_func($opt[self::Normalizer], $arg);
+		}
+
+		if (!empty($opt[self::RealPath])) {
 			$path = realpath($arg);
 			if ($path === false) {
 				throw new \Exception("File path '$arg' not found.");
 			}
+
 			$arg = $path;
 		}
 	}
 
 
-	public function isEmpty()
+	public function isEmpty(): bool
 	{
 		return !isset($_SERVER['argv']) || count($_SERVER['argv']) < 2;
 	}
